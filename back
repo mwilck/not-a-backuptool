@@ -1,0 +1,204 @@
+#! /bin/bash
+: ${SRC:=/}
+: ${BACKUP:=/net/nasobem.local/c/backup/apollon.dup}
+: ${CACHE:=/root/.cache/duplicity}
+: ${CONF:=/root}
+: ${NAME:=apollon.dup}
+: ${KEY:=63D76654}
+#: ${OPTS:="--volsize 500 -v5 --allow-source-mismatch"}
+: ${OPTS:="--volsize 500 -v5 --use-agent"}
+: ${DRY:=--dry-run}
+: ${FULL:=}
+LOG=$BACKUP/backup.log
+
+[ $UID -eq 0 ] || exec sudo "$0" "$@"
+
+ERROR='cry Error executing \""$BASH_COMMAND" at $0:$LINENO\" >&2'
+CLEANUP='cry Finished at $(timestamp)'
+ERRCODE=129
+
+trap 'trap - ERR; eval "$ERROR"' ERR
+trap 'trap - 0; eval "$CLEANUP"' 0
+
+timestamp() { date +%Y-%m-%d.%H:%M:%S; }
+cry() { echo "== $0: $@ ==" >&2; };
+die() { cry FATAL: "$@"; exit $ERRCODE; }
+cmd() {
+    cry "$@"
+    eval "$@"
+}
+
+set -e
+set -E
+[[ $# -le 1 ]]
+[[ -d "$BACKUP" ]]
+#[ -d "$CACHE/$NAME" ]
+[[ -d "$SRC" ]]
+
+case $1 in
+    back)
+	if tty >/dev/null; then
+	    cry REAL RUN, last chance to exit
+	    sleep 5
+	fi
+	DRY=
+	;;
+     full)
+	if tty >/dev/null; then
+	    cry REAL RUN, last chance to exit
+	    sleep 5
+	fi
+	DRY=
+	FULL=full
+	;;
+    "") ;;
+   "") ;;
+    *)  die usage: "$0 [back]";; 
+esac    
+
+if [[ -z "$DRY" ]]; then
+    cry log file is $LOG
+    exec >>$LOG 2>&1
+fi
+cry Started at $(timestamp)
+
+TMPDIR=$(mktemp -d /tmp/back-XXXXXX)
+CLEANUP='rm -rf $TMPDIR;'"$CLEANUP"
+
+includelist() {
+    rm -f "$1"
+    [ -f $CONF/.backup.include.early ] && cat $CONF/.backup.include.early \
+	>>"$1"
+    echo "- $CACHE/$NAME" >>$1
+    cat >>"$1" <<\EOF
+- /.snapshots
+- /suse
+- /mounts
+- /net
+- /proc
+- /sys
+- /dev
+- /tmp
+- /run
+- /var/run
+- /mnt/vms
+- /mnt/git
+- /**/.DCOPserver_*
+- /**/.beagle
+- /**/.aMule
+- /**/.cddb
+- /**/.compiz/session
+- /**/.config/Blue Jeans
++ /home/*/.config/libreoffice/*/user/config
+- /**/.config/libreoffice/*
+- /**/.config/google-chrome/Crash*
+- /**/.config/google-chrome/*/Cookies
+- /**/.config/google-chrome/*/Extensions
+- /**/.config/pulse/*.conf
+- /**/.config/pulse/*.pa
+- /**/.config/pulse
+- /**/.dbus/session-bus
+- /**/.dropbox
+- /**/.dropbox-dist
+- /**/.dvdcss
+- /**/.ee
+- /**/.emacs.d/auto-save-list
+- /**/.fontconfig/*.cache*
+- /**/.java/deployment/log
+- /**/.java/deployment/tmp
+- /**/.gnome2/totem-addons
+- /**/.kde4/share/apps/ktorrent/tor*
+- /**/.kde4/share/apps/okular/docdata
+- /**/.kde4/share/apps/gwenview/recentfolders
+- /**/.kde4/share/apps/gwenview/recenturls
+- /**/.kde/share/apps/kget/logs
+- /**/.kde/share/apps/kpdf
+- /**/.kde/share/apps/ktorrent/tor*
+- /**/.mcop/trader-cache
+- /**/.mythtv/themecache
+- /**/.mozilla/*/Crash Reports
+- /**/.local/share/shotwell/data
+- /**/.local/share/gnome-do
+- /**/.local/share/gnome-shell/extensions
+- /**/.local/share/gnome-software
+- /**/.local/share/icons
+- /**/.local/share/gvfs-metadata
+- /**/.local/share/tracker/data
+- /**/.macromedia/Flash_Player
+- /**/.mozilla/*/extensions
+- /**/.mozilla/Crash*
+- /**/.mozilla/firefox/*/datareporting
+- /**/.mozilla/firefox/*/saved-telemetry-pings
+- /**/.mozilla/firefox/*/extensions
+- /**/.mozilla/firefox/*/webapps
+- /**/.mozilla/firefox/*/webappsstore.*
+- /**/.mozilla-thunderbird/*/extensions
+- /**/.mozilla-thunderbird/Crash*
+- /**/.pulse
+- /**/.purple/logs
+- /**/.xauth*
+- /**/.Private
+- /**/.texmf-var
+- /**/.**.scantemp.pnm
+- /**/.**.previewtemp.pnm
+- /**/.**[cC]ache
+- /**/.**[tT]rash
+- /**/.**[tT]humbnails
+- /**/Dropbox
+- /**/gtk-gnutella-downloads
+- /home/*/Downloads
+- /home/*/Music
+- /home/*/Photos
+- /home/*/Videos
+- /home/*/rpmbuild
+- /root/Downloads
+- /etc/X11/xkb
+- /etc/texmf/ls-R
+- /etc/bootsplash/themes
+- /etc/brltty
+- /etc/usb_modeswitch.d
+- /etc/xscreensaver
+- /var/log/cups
+- /var/log/gdm*.[1-9]
+- /var/log/journal
+- /var/log/*20[0-9][0-9][0-9][0-9][0-9][0-9]
+- /var/log/*20[0-9][0-9][0-9][0-9][0-9][0-9].gz
+- /var/log/*20[0-9][0-9][0-9][0-9][0-9][0-9].bz2
+- /var/log/*20[0-9][0-9][0-9][0-9][0-9][0-9].xz
+- /var/log/**/*20[0-9][0-9][0-9][0-9][0-9][0-9]
+- /var/log/**/*20[0-9][0-9][0-9][0-9][0-9][0-9].gz
+- /var/log/**/*20[0-9][0-9][0-9][0-9][0-9][0-9].bz2
+- /var/log/**/*20[0-9][0-9][0-9][0-9][0-9][0-9].xz
+- /var/log/messages-*.bz2
+- /var/log/NetworkManager-*.bz2
+- /var/log/ntpstats
+- /var/log/peerstats
+- /var/log/updateTestcase*
+- /var/log/zypper.log-*.bz2
+- /NoBackup
+- /**/NoBackup
+- /**/*.iso
+- /**/*.a
+- /**/*.o
+- /**/*~
+- /**/.gvfs
+- /**/.#*
+- /**/#*
+- /**/*.pyc
++ /usr/local
++ /var/mail
++ /var/log
++ /etc
++ /root
++ /home
+- /*
+EOF
+
+    if [ -f $CONF/.backup.include.late ]; then
+	cat $CONF/.backup.include.late >>"$1"
+    fi
+}
+
+includelist "$TMPDIR/include.txt"
+cat "$TMPDIR/include.txt"
+cmd duplicity $FULL $DRY $OPTS --exclude-globbing-filelist "$TMPDIR/include.txt" --archive-dir "$CACHE" --name $NAME --encrypt-key $KEY "$SRC" file://"$BACKUP"
