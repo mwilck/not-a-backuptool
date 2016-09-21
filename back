@@ -1,7 +1,7 @@
 #! /bin/bash
 : ${SRC:=/}
-: ${HOST:=nasobem.local}
-: ${BACKUP:=/net/${HOST}/c/backup/apollon.dup}
+: ${BACKUP_HOST:=nasobem.local}
+: ${BACKUP:=/net/${BACKUP_HOST}/c/backup/apollon.dup}
 : ${CACHE:=/root/.cache/duplicity}
 : ${CONF:=/root}
 : ${NAME:=apollon.dup}
@@ -9,12 +9,14 @@
 : ${OPTS:="--volsize 500 -v5"}
 : ${DRY:=--dry-run}
 : ${FULL:=}
+: ${INTERVAL:=$((3600*4))}
+: ${DEBUG:=0}
 LOG=$BACKUP/backup.log
 
 [ $UID -eq 0 ] || exec sudo "$0" "$@"
 
 ERROR='cry Error executing \""$BASH_COMMAND" at $0:$LINENO\" >&2'
-CLEANUP='cry Finished at $(timestamp)'
+CLEANUP=''
 ERRCODE=129
 
 trap 'trap - ERR; eval "$ERROR"' ERR
@@ -33,8 +35,8 @@ set -E
 [[ $# -le 1 ]]
 
 # Try to resolve and ping the host, give up otherwise
-IP=$(dig +short "$HOST")
-[[ -n "$IP" ]] || IP=$(avahi-resolve -n "$HOST" | cut -f 2)
+IP=$(dig +short "$BACKUP_HOST")
+[[ -n "$IP" ]] || IP=$(avahi-resolve -n "$BACKUP_HOST" | cut -f 2)
 [[ -n "$IP" ]]
 ping -c 1 "$IP" &>/dev/null
 
@@ -44,30 +46,39 @@ ping -c 1 "$IP" &>/dev/null
 
 case $1 in
     back)
-	if tty >/dev/null; then
-	    cry REAL RUN, last chance to exit
-	    sleep 5
-	fi
 	DRY=
 	;;
-     full)
-	if tty >/dev/null; then
-	    cry REAL RUN, last chance to exit
-	    sleep 5
-	fi
+    full)
 	DRY=
 	FULL=full
 	;;
     "") ;;
-   "") ;;
     *)  die usage: "$0 [back]";; 
 esac    
 
+last=$(ls -t "$BACKUP"/*.manifest.gpg 2>/dev/null | head -1)
+if [[ -f "$last" ]]; then
+    ts=$(stat -c %Y "$last")
+    now=$(date +%s)
+    if [[ $((now - ts < INTERVAL)) -eq 1 ]]; then
+	[[ $DEBUG -eq 0 ]] || cry "Last backup is $((now-ts))s < ${INTERVAL}s old, exiting."
+	exit 0
+    fi
+else
+    [[ -n "$FULL" ]] || { die "incremental update requested but no previous backup found"; }
+fi
+
 if [[ -z "$DRY" ]]; then
+    if tty >/dev/null; then
+	cry REAL RUN, last chance to exit
+	sleep 5
+    fi
     cry log file is $LOG
     exec >>$LOG 2>&1
 fi
+
 cry Started at $(timestamp)
+CLEANUP='cry Finished at $(timestamp);'"$CLEANUP"
 
 TMPDIR=$(mktemp -d /tmp/back-XXXXXX)
 CLEANUP='rm -rf $TMPDIR;'"$CLEANUP"
@@ -207,5 +218,5 @@ EOF
 }
 
 includelist "$TMPDIR/include.txt"
-cat "$TMPDIR/include.txt"
+[[ $DEBUG -eq 0 ]] || cat "$TMPDIR/include.txt"
 cmd duplicity $FULL $DRY $OPTS --exclude-globbing-filelist "$TMPDIR/include.txt" --archive-dir "$CACHE" --name $NAME --encrypt-key $KEY "$SRC" file://"$BACKUP"
