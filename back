@@ -14,6 +14,7 @@
 LOG=$BACKUP/backup.log
 
 [ $UID -eq 0 ] || exec sudo "$0" "$@"
+export LC_ALL=C
 
 ERROR='cry Error executing \""$BASH_COMMAND" at $0:$LINENO\" >&2'
 CLEANUP=''
@@ -41,6 +42,7 @@ IP=$(dig +short "$BACKUP_HOST")
 ping -c 1 "$IP" &>/dev/null
 
 [[ -d "$SRC" ]]
+##[[ -d "/home/cwilck" ]]
 [[ -d "$BACKUP" ]]
 #[ -d "$CACHE/$NAME" ]
 
@@ -132,9 +134,12 @@ includelist() {
 - /**/.kde/share/apps/kget/logs
 - /**/.kde/share/apps/kpdf
 - /**/.kde/share/apps/ktorrent/tor*
+- /**/.kde/share/apps/kconf_update/log
+- /**/.kde/tmp-*
 - /**/.mcop/trader-cache
 - /**/.mythtv/themecache
 - /**/.mozilla/*/Crash Reports
+- /**/.local/share/zeitgeist
 - /**/.local/share/shotwell/data
 - /**/.local/share/gnome-do
 - /**/.local/share/gnome-shell/extensions
@@ -151,7 +156,11 @@ includelist() {
 - /**/.mozilla/firefox/*/webapps
 - /**/.mozilla/firefox/*/webappsstore.*
 - /**/.mozilla-thunderbird/*/extensions
+- /**/.mozilla-thunderbird/*/saved-telemetry-pings
 - /**/.mozilla-thunderbird/Crash*
+- /**/.thunderbird/*/extensions
+- /**/.thunderbird/*/saved-telemetry-pings
+- /**/.thunderbird/Crash*
 - /**/.pulse
 - /**/.purple/logs
 - /**/.xauth*
@@ -166,6 +175,7 @@ includelist() {
 - /**/gtk-gnutella-downloads
 - /home/*/Downloads
 - /home/*/Music
+- /home/*/Musik
 - /home/*/Photos
 - /home/*/Videos
 - /home/*/rpmbuild
@@ -174,6 +184,8 @@ includelist() {
 - /etc/texmf/ls-R
 - /etc/bootsplash/themes
 - /etc/brltty
+- /etc/gufw/app_profiles
+- /etc/sane.d
 - /etc/usb_modeswitch.d
 - /etc/xscreensaver
 - /var/log/cups
@@ -187,6 +199,10 @@ includelist() {
 - /var/log/**/*20[0-9][0-9][0-9][0-9][0-9][0-9].gz
 - /var/log/**/*20[0-9][0-9][0-9][0-9][0-9][0-9].bz2
 - /var/log/**/*20[0-9][0-9][0-9][0-9][0-9][0-9].xz
+- /var/log/*.[0-9]
+- /var/log/*.[0-9].gz
+- /var/log/upstart/*.[0-9]
+- /var/log/upstart/*.[0-9].gz
 - /var/log/messages-*.bz2
 - /var/log/NetworkManager-*.bz2
 - /var/log/ntpstats
