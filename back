@@ -5,8 +5,7 @@
 : ${CONF:=/root}
 : ${NAME:=apollon.dup}
 : ${KEY:=63D76654}
-#: ${OPTS:="--volsize 500 -v5 --allow-source-mismatch"}
-: ${OPTS:="--volsize 500 -v5 --use-agent"}
+: ${OPTS:="--volsize 500 -v5"}
 : ${DRY:=--dry-run}
 : ${FULL:=}
 LOG=$BACKUP/backup.log
