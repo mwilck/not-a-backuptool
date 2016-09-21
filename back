@@ -73,7 +73,7 @@ if [[ -z "$DRY" ]]; then
 	cry REAL RUN, last chance to exit
 	sleep 5
     fi
-    cry log file is $LOG
+    [[ $DEBUG -le 0 ]] || cry log file is $LOG
     exec >>$LOG 2>&1
 fi
 
