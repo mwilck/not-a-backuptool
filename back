@@ -9,7 +9,7 @@
 : ${OPTS:="--volsize 500 -v5"}
 : ${DRY:=--dry-run}
 : ${FULL:=}
-: ${INTERVAL:=$((3600*4))}
+: ${INTERVAL:=$((3600*4-30))}
 : ${DEBUG:=0}
 LOG=$BACKUP/backup.log
 
@@ -42,9 +42,7 @@ IP=$(dig +short "$BACKUP_HOST")
 ping -c 1 "$IP" &>/dev/null
 
 [[ -d "$SRC" ]]
-##[[ -d "/home/cwilck" ]]
 [[ -d "$BACKUP" ]]
-#[ -d "$CACHE/$NAME" ]
 
 case $1 in
     back)
@@ -58,7 +56,7 @@ case $1 in
     *)  die usage: "$0 [back]";; 
 esac    
 
-last=$(ls -t "$BACKUP"/*.manifest.gpg 2>/dev/null | head -1)
+last=$(ls -t "$CACHE/$NAME"/*.manifest 2>/dev/null | head -1)
 if [[ -f "$last" ]]; then
     ts=$(stat -c %Y "$last")
     now=$(date +%s)
