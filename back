@@ -1,5 +1,6 @@
 #! /bin/bash
 : ${SRC:=/}
+: ${DUPLICITY:=duplicity}
 : ${BACKUP_HOST:=nasobem.local}
 : ${BACKUP:=/net/${BACKUP_HOST}/c/backup/apollon.dup}
 : ${CACHE:=/root/.cache/duplicity}
@@ -233,4 +234,4 @@ EOF
 
 includelist "$TMPDIR/include.txt"
 [[ $DEBUG -eq 0 ]] || cat "$TMPDIR/include.txt"
-cmd duplicity $FULL $DRY $OPTS --exclude-globbing-filelist "$TMPDIR/include.txt" --archive-dir "$CACHE" --name $NAME --encrypt-key $KEY "$SRC" file://"$BACKUP"
+cmd $DUPLICITY $FULL $DRY $OPTS --exclude-globbing-filelist "$TMPDIR/include.txt" --archive-dir "$CACHE" --name $NAME --encrypt-key $KEY "$SRC" file://"$BACKUP"
