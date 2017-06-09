@@ -10,6 +10,7 @@
 : ${OPTS:="--volsize 500 -v5 --allow-source-mismatch"}
 : ${DRY:=--dry-run}
 : ${FULL:=}
+: ${ACTION:=backup}
 : ${INTERVAL:=$((3600*4-30))}
 : ${DEBUG:=0}
 LOG=$BACKUP/backup.log
@@ -34,7 +35,7 @@ cmd() {
 
 set -e
 set -E
-[[ $# -le 1 ]]
+[[ $# -le 1 || ( $# -eq 2 && x$1 = xrestore ) ]]
 
 # Try to resolve and ping the host, give up otherwise
 IP=$(dig +short "$BACKUP_HOST")
@@ -53,9 +54,31 @@ case $1 in
 	DRY=
 	FULL=full
 	;;
+    list|restore)
+	ACTION=$1
+	shift
+	;;
     "") ;;
     *)  die usage: "$0 [back]";; 
 esac    
+
+case $ACTION in
+    list)
+	cmd $DUPLICITY list-current-files --archive-dir "$CACHE" --name "$NAME" --encrypt-key "$KEY" file://"$BACKUP"
+	exit 0
+	;;
+    restore)
+	TRG=$(mktemp -d /tmp/back-XXXXXX)
+	if [[ $1 ]]; then
+	    ARGS="--file-to-restore \"$1\""
+	else
+	    ARGS=
+	fi
+	cry restoring to $TRG
+	cmd $DUPLICITY restore $ARGS --archive-dir "$CACHE" --name "$NAME" --encrypt-key "$KEY" file://"$BACKUP" "$TRG"
+	exit 0
+	;;
+esac
 
 last=$(ls -t "$CACHE/$NAME"/*.manifest 2>/dev/null | head -1)
 if [[ -f "$last" ]]; then
