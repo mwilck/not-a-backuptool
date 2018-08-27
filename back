@@ -12,6 +12,7 @@
 : ${FULL:=}
 : ${ACTION:=backup}
 : ${INTERVAL:=$((3600*4-30))}
+: ${WARN_INTERVAL:=$((3600*24*7))}
 : ${DEBUG:=0}
 LOG=$BACKUP/backup.log
 
@@ -87,6 +88,8 @@ if [[ -f "$last" ]]; then
     if [[ $((now - ts < INTERVAL)) -eq 1 ]]; then
 	[[ $DEBUG -eq 0 ]] || cry "Last backup is $((now-ts))s < ${INTERVAL}s old, exiting."
 	exit 0
+    elif [[ $((now - ts > WARN_INTERVAL)) -eq 1 ]]; then
+	cry WARNING: last backup was $(((now - ts)/(3600*24))) days ago
     fi
 else
     [[ -n "$FULL" ]] || { die "incremental update requested but no previous backup found"; }
