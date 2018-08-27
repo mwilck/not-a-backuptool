@@ -15,6 +15,7 @@
 : ${WARN_INTERVAL:=$((3600*24*7))}
 : ${DEBUG:=0}
 LOG=$BACKUP/backup.log
+WARN=
 
 [ $UID -eq 0 ] || exec sudo "$0" "$@"
 export LC_ALL=C
@@ -38,14 +39,16 @@ set -e
 set -E
 [[ $# -le 1 || ( $# -eq 2 && x$1 = xrestore ) ]]
 
-# Try to resolve and ping the host, give up otherwise
-IP=$(dig +short "$BACKUP_HOST")
-[[ -n "$IP" ]] || IP=$(avahi-resolve -n "$BACKUP_HOST" | cut -f 2)
-[[ -n "$IP" ]]
-ping -c 1 "$IP" &>/dev/null
+check_backup_host() {
+    # Try to resolve and ping the host, give up otherwise
+    IP=$(dig +short "$BACKUP_HOST")
+    [[ -n "$IP" ]] || IP=$(avahi-resolve -n "$BACKUP_HOST" | cut -f 2)
+    [[ -n "$IP" ]]
+    ping -c 1 "$IP" &>/dev/null
 
-[[ -d "$SRC" ]]
-[[ -d "$BACKUP" ]]
+    [[ -d "$SRC" ]]
+    [[ -d "$BACKUP" ]]
+}
 
 case $1 in
     back)
@@ -61,14 +64,16 @@ case $1 in
 	;;
     "") ;;
     *)  die usage: "$0 [back]";; 
-esac    
+esac
 
 case $ACTION in
     list)
+	check_backup_host
 	cmd $DUPLICITY list-current-files --archive-dir "$CACHE" --name "$NAME" --encrypt-key "$KEY" file://"$BACKUP"
 	exit 0
 	;;
     restore)
+	check_backup_host
 	TRG=$(mktemp -d /tmp/back-XXXXXX)
 	if [[ $1 ]]; then
 	    ARGS="--file-to-restore \"$1\""
@@ -89,7 +94,8 @@ if [[ -f "$last" ]]; then
 	[[ $DEBUG -eq 0 ]] || cry "Last backup is $((now-ts))s < ${INTERVAL}s old, exiting."
 	exit 0
     elif [[ $((now - ts > WARN_INTERVAL)) -eq 1 ]]; then
-	cry WARNING: last backup was $(((now - ts)/(3600*24))) days ago
+	cry WARNING: last good backup was $(((now - ts)/(3600*24))) days ago
+	WARN=yes
     fi
 else
     [[ -n "$FULL" ]] || { die "incremental update requested but no previous backup found"; }
@@ -104,6 +110,14 @@ if [[ -z "$DRY" ]]; then
     exec >>$LOG 2>&1
 fi
 
+# Avoid cron mail for failed command unless no backup for WARN_INTERVAL
+if ! check_backup_host; then
+    if tty >/dev/null || [[ "o$WARN" = oyes ]]; then
+	exit 1
+    else
+	exit 0
+    fi
+fi
 cry Started at $(timestamp)
 CLEANUP='cry Finished at $(timestamp);'"$CLEANUP"
 
