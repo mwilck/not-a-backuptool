@@ -180,6 +180,7 @@ includelist() {
 - /**/.mozilla-thunderbird/*/extensions
 - /**/.mozilla-thunderbird/*/saved-telemetry-pings
 - /**/.mozilla-thunderbird/Crash*
+- /**/.npm
 - /**/.thunderbird/*/extensions
 - /**/.thunderbird/*/saved-telemetry-pings
 - /**/.thunderbird/Crash*
