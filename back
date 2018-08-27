@@ -143,15 +143,18 @@ includelist() {
 - /**/.config/pulse/*.pa
 - /**/.config/pulse
 - /**/.dbus/session-bus
+- /**/.debug
 - /**/.dropbox
 - /**/.dropbox-dist
 - /**/.dvdcss
 - /**/.ee
 - /**/.emacs.d/auto-save-list
+- /**/.emacs.d/session.*
 - /**/.fontconfig/*.cache*
 - /**/.java/deployment/log
 - /**/.java/deployment/tmp
 - /**/.gnome2/totem-addons
+- /**/.hplip/hp-systray.lock
 - /**/.kde4/share/apps/ktorrent/tor*
 - /**/.kde4/share/apps/okular/docdata
 - /**/.kde4/share/apps/gwenview/recentfolders
@@ -161,6 +164,7 @@ includelist() {
 - /**/.kde/share/apps/ktorrent/tor*
 - /**/.kde/share/apps/kconf_update/log
 - /**/.kde/tmp-*
+- /**/.lastpass
 - /**/.mcop/trader-cache
 - /**/.mythtv/themecache
 - /**/.mozilla/*/Crash Reports
@@ -171,13 +175,16 @@ includelist() {
 - /**/.local/share/gnome-software
 - /**/.local/share/icons
 - /**/.local/share/gvfs-metadata
+- /**/.local/share/parcellite
 - /**/.local/share/tracker/data
 - /**/.macromedia/Flash_Player
 - /**/.mozilla/*/extensions
 - /**/.mozilla/Crash*
+- /**/.mozilla/firefox/*/crashes
 - /**/.mozilla/firefox/*/datareporting
 - /**/.mozilla/firefox/*/saved-telemetry-pings
 - /**/.mozilla/firefox/*/extensions
+- /**/.mozilla/firefox/*/storage
 - /**/.mozilla/firefox/*/webapps
 - /**/.mozilla/firefox/*/webappsstore.*
 - /**/.mozilla-thunderbird/*/extensions
