@@ -1,0 +1,6 @@
+#! /bin/bash
+[ $(id -g -n) = backup ] || exec sg backup -c "$0 $@" || exit 1
+
+umask 0002
+rsync -ric --delete --chmod g+w /var/lib/createimg/ /net/nasobem.local/c/backup/droid/mini
+

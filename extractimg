@@ -1,0 +1,90 @@
+#! /bin/bash
+cry() { echo "$@" >&2; }
+die() { cry "FATAL: $@"; exit 129; }
+
+: ${TMPD:=}
+: ${MNTP:=}
+
+usage() {
+	cry "Usage: $(basename $0) [-d dir] [-m mntpt]"
+}
+
+set -e
+while [ $# -gt 0 ]; do
+        case $1 in
+        -d) shift; TMPD=$1;;
+        -m) shift; MNTP=$1;;
+	-?|--help) usage; exit 0;;
+       *)  die unknown option $1;;
+        esac
+        shift
+done
+
+[ -n "$TMPD" ] || die please use -d
+[ -n "$MNTP" ] || die please use -f
+[ -d "$TMPD" ] || die dir $TMPD not found
+[ -d "$MNTP" ] || die dir $MNTP not found
+
+cd $TMPD
+mkdir -p rest
+cd rest
+
+if [ ! -d $MNTP/etc/zypp/repos.d ]; then
+    cry extracting repositories from archive
+    cry you may need to check $MNTP/etc/zypp/repos.d and restart
+    # also unpack shadow, group etc
+    (cd $MNTP; star -x -j -f $TMPD/img.star.bz2 etc)
+    sed -i 's/autorefesh=.*$/autorefresh=0/' $MNTP/etc/zypp/{repos.d,services.d}/*
+fi
+
+bzip2 -dc ../rpmlist.txt.bz2 | awk '{print $1 "=" $2;}' >toinstall.txt
+
+grep -q $MNTP/dev /proc/mounts  || { mkdir -p $MNTP/dev; mount --bind /dev $MNTP/dev; }
+trap 'umount $MNTP/dev' 0
+
+ZCMD="--root $MNTP --gpg-auto-import-keys -n install --no-recommends --force-resolution -l"
+
+doinstall() {
+echo trying to install $(cat $1) ... >&2
+set +e
+zypper $ZCMD $(cat $1) >>install_log.txt 2>&1 
+res=$?
+set -e
+while [ $res -eq 104 ]; do
+    notfound=$(sed -n 's/^'"'"'\([^'"'"']*\)'"'"' not found\..*$/\1/p' install_log.txt)
+    [ -n "$notfound" ] || die no missing file found in $PWD/install_log.txt
+    echo $notfound was missing >&2
+    case $notfound in 
+	*\>=*) echo trying no version for $notfound >&2
+	      sed -i '/'"$notfound"'/s/>=.*$//' $1;;
+    	*=*)  echo trying '>=' for $notfound >&2
+	      sed -i '/'"$notfound"'/s/=/>=/' $1;;
+	*)    echo ERROR: cannot find $notfound >&2
+	      sed -i '/'"$notfound"'/d' $1;;
+    esac
+    echo trying to install $(cat $1) ... >&2
+    set +e
+    zypper $ZCMD $(cat $1) >>install_log.txt 2>&1
+    res=$?
+    set -e
+done
+
+if [ $res -eq 0 ]; then
+    echo installation successful >&2
+else
+    echo installation failed! >&2
+    cat install_log.txt >&2
+fi
+    return $res
+}
+
+egrep 'grep|sed|awk|bash|ksh|csh|coreutils|aaa_base|rpm|findutils' toinstall.txt  >basic.txt
+doinstall basic.txt
+doinstall toinstall.txt
+
+cry extracting other files ...
+(cd $MNTP; star -x -j -U -force-remove -remove-first -acl -xattr -f $TMPD/img.star.bz2) > extract.txt 2>&1
+cry done.
+
+bzip2 -9f install_log.txt
+

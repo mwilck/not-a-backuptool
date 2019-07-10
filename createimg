@@ -1,0 +1,399 @@
+#! /bin/bash
+FILESYSTEMS="ext[2-4]|reiserfs|btrfs|xfs|jfs"
+cry() { echo "$@" >&2; }
+die() { cry "FATAL: $@"; exit 129; }
+
+: ${TMPD:=}
+: ${MNTP:=}
+: ${EXCL:=}
+: ${NOEX:=no}
+: ${DOIT:=}
+: ${KEEP:=}
+: ${REMOVE:=}
+: ${DEBUG:=}
+: ${LAST:=}
+: ${BACKUPDIR:=/var/lib/createimg}
+#: ${DEBUG:=-vv}
+
+STAR_C_FLAGS="-j H=exustar -dump -sparse -acl" # " -xattr-linux"
+CLEANUP=""
+TXTFILES=(delete diff-exclude exclude last noverify rpmfiles rpmlist)
+DONE=
+trap 'trap - ERR; echo error in $BASH_COMMAND, abort >&2' ERR
+trap 'trap - 0; set +e; echo $CLEANUP >&2; eval "$CLEANUP"' 0
+add_cleanup() {
+    CLEANUP="$1; $CLEANUP"
+}
+
+usage() {
+	cry "Usage: $(basename $0) [-d dir] [-l lastdir] [-x exlude-file] [-n|--noexclude] [-t|--test] [-R|--remove-metadata] dir [dir ...]"
+}
+
+set -e
+while [ $# -gt 0 ]; do
+	case $1 in
+	-d) shift; TMPD=$1;;
+	-l) shift; LAST=$1;;
+	-x) shift; EXCL=$1;;
+	-n|--noexclude) NOEX=yes;;
+	-k|--keep) KEEP=yes;;
+	-t|--test) DOIT=-nv;;
+	-R|--remove-metadata) REMOVE=yes;;
+	-?|--help) usage; exit 0;;
+	/*)  MNTP="$MNTP $1";;
+        *)   die $(usage);;
+	esac
+	shift
+done
+MNTP="${MNTP## }"
+if [ -n "$BACKUPDIR" ]; then
+    mkdir -p "$BACKUPDIR"
+    if [ x$TMPD = xAUTO ]; then
+        TMPD=$BACKUPDIR/$(date +%Y-%m-%d)
+        [ ! -d "$TMPD" ] || { 
+	    cry  "$TMPD" exists already
+	    exit 0
+	}
+    fi
+    if [ x"$LAST" = xAUTO ]; then
+	LAST=$(find "$BACKUPDIR" -type d -name 20\* | sort -r | head -1)
+    fi
+fi
+[ -z "$TMPD" ] && TMPD=$(mktemp -d /tmp/img.XXXXXX)
+[ -d "$TMPD" ] || mkdir -p "$TMPD"
+[ -d "$TMPD" ] || die dir $TMPD not found
+TMPD=$(cd "$TMPD"; pwd)
+cry dir is $TMPD
+
+if [ -n "$LAST" ]; then
+    [ -d "$LAST" ] || die dir $LAST not found
+    LAST=$(cd "$LAST"; pwd)
+    [ x"$LAST" = x"$TMPD" ] && die lastdir and dir can\'t be the same
+    cry LAST=$LAST
+fi
+
+cd "$TMPD"
+exec 10>&2
+exec 2>log.txt 1>&2
+add_cleanup 'cat log.txt >&10'
+add_cleanup 'exec 2>&10 1>&10'
+
+[ o$REMOVE = oyes -a x$DOIT = x ] && {
+    # Syntax: list of all elements of TXTFILES, end of string replaced by ".txt"
+    rm -f ${TXTFILES[@]/%/.txt}
+    rm -f ${TXTFILES[@]/%/.txt.bz2}
+    rm -f rpmlist.txt.bz2 noverify.txt.bz2 rpmfiles.txt.bz2 exclude.txt.bz2 log.txt.bz2
+    rm -rf img
+}
+
+for x in ${TXTFILES[@]}; do 
+    if [ -f $x.txt.bz2 -a ! -f $x.txt ]; then
+        bunzip2 $x.txt.bz2
+    fi
+done
+
+if [[ o$KEEP = oyes ]]; then
+   add_cleanup 'bzip2 -9f ${TXTFILES[@]/%/.txt}'
+else
+   add_cleanup 'rm -f ${TXTFILES[@]/%/.txt}'
+fi
+
+if [ -n "$LAST" ]; then
+    [ -d "$LAST"/img ] || {
+	add_cleanup "rm -rf \"$LAST\"/img"
+	$(dirname $0)/restoreimg "$LAST"
+    }
+    [ -d "$LAST"/img ] || {
+	cry failed to extract $LAST/img. Reverting to full backup.
+	LAST=
+    }
+fi
+
+if [ -n "$EXCL" ] && [ ! -f "$EXCL" ]; then die exclude file $EXCL not found; fi
+if [ -n "$EXCL" ] && [ -n "$(sed '/^[+-] /d' $EXCL)" ]; then die exclude file $EXCL has bad format; fi
+
+get_mountpoints() {
+	awk '$3 ~ /('"$FILESYSTEMS"')/ { print $2; }' </proc/mounts
+}
+
+if [ -n "$MNTP" ]; then 
+    _MNTP=$MNTP
+    MNTP=
+    for x in $_MNTP; do
+	case $x in
+	    /) ;;
+	    */) x=$(expr "$x" : '\(.*[^/]\)');;
+	esac
+	MNTP="$MNTP $x"
+    done
+else
+    MNTP=$(get_mountpoints)
+fi
+
+# TODO: filter out file systems by mount point / FS-ID
+cry mount points: "$MNTP"
+
+list_clean() {
+	local x nfields rpmv maj min
+	case $1 in "") x=-a;; *) x=$1;; esac
+	rpmv=$(rpm -q --qf '%{version}' rpm)
+	maj=$(echo $rpmv | cut -d . -f 1)
+	min=$(echo $rpmv | cut -d . -f 2)
+
+	# I don't recall why I did this. Maybe rpm -V was broken in 4.1?
+	case $maj.$min in 4.1) rpm -ql $x | sed -n 's,^/,- /,p'; return;; esac
+
+	# rpm 4.7 introduced capability support in --verify
+	if [ $maj -gt 4 ] || [ $min -ge 7 ]; then
+		nfields=9
+	else
+		nfields=8
+	fi
+
+	rpm -Vv --nodeps --nomtime $x | awk --re-interval '
+{
+	line=$0;
+	sub(/^[^\/]+\//,"/",line);
+	if ($1 ~ /^[.]{'"$nfields"'}/) {
+		print "- " line;
+	} else {
+		print "+ " line;
+	}
+}'
+}
+
+[ -f rpmlist.txt ] || {
+	cry creating list of installed packages
+	rpm -qa --qf '%{name} %{arch} %{version}-%{release}\n' |awk '$2 !~ /(none)/{print $1 "." $2 "\t" $3;}' >rpmlist.txt
+}
+
+[ -f noverify.txt ] || {
+    # files with fileverifyflags != ffffffff can't be verified using rpm
+    # include them in image always
+    cry creating list of unverifyable files
+    { 
+      # Skip ghost files (fileflags = 'g').
+      # rpm 4.1.* treats all %doc files as unverifable - skip !!??
+      # config files (fileflags 'c') should always be included even if marked as ghost
+      case $(rpm --version) in 
+	*" "4.1.*) EXDOC='|| !($2 ~ /[dg]/)';;
+        *) EXDOC='|| !($2 ~ /g/)';;
+      esac 
+      rpm -qa --qf '[%{filenames} "%{fileflags:fflags}" %{filemodes:perms} %{fileverifyflags:hex}\n]' | \
+	awk '(!($4 ~ /ffffffff/) && ($3 ~ /^-/) && (($2 ~ /c/) '"$EXDOC"')) { print "+ " $1; }' 
+     } >noverify.txt
+}
+
+[ -f rpmfiles.txt ] || {
+	if [ -x /usr/sbin/prelink ]; then
+            cry running prelink
+	    /usr/sbin/prelink -avmR >prelink.log 2>&1;
+	    bzip2 -9f prelink.log
+        fi
+	cry creating list of files
+	# Avoid stuff to be backup'd because of prelink problems
+	list_clean >rpmfiles.txt
+	# F17: take into account that all /lib, /bin files are now really under /usr
+	if [ -L /lib ]; then
+	    sed -i 's,^\([-+]\) /\(bin\|lib\|lib64\|sbin\)/\(.\),\1 /usr/\2/\3,' rpmfiles.txt
+	fi
+}
+
+[ -f exclude.txt ] || {
+    echo "- $TMPD/" >exclude.txt
+    if [[ $BACKUPDIR ]]; then echo "- $BACKUPDIR/" >>exclude.txt; fi
+# needed because rpmfiles.txt will exclude dirs
+# This means that every dir exclude below must be written as $DIR/**
+    echo "+ */" >>exclude.txt 
+# needed to get yum configuration + .repo files even
+    cat >>exclude.txt <<EOF
++ /etc/yum.conf
++ /etc/yum.repos.d/*.repo
++ /etc/yum/**
+EOF
+# stuff that must be excluded even if modified / not verifiable
+    if [ o$NOEX != oyes ]; then 
+	cat >>exclude.txt <<EOF
+- /dev/**
+# files generated by semodule (selinux-policy-targeted)
+- /etc/selinux/targeted/modules/active/policy.kern
+- /etc/selinux/targeted/policy/*
+- /tmp/**
+- /usr/lib/locale/locale-archive*
+# SUSE postgresql-server package - backup binaries for restoration
+# after postgresql update - only useful until db data has been upated
+# This is the binary of the previously installed postgresql-server pkg
+- /usr/lib/postgresql/backup/*
+# rpm database, recent SUSE distros
+- /usr/lib/sysimage/rpm/*
+- /usr/lib64/postgresql/backup/*
+- /usr/share/icons/**/icon-theme.cache
+- /var/adm/backup/rpmdb/*
+- /var/tmp/**
+- /var/cache/**
+# hashed CA info,auto-generated
+- /var/lib/ca-certificates/**
+- /var/lib/clamav/**
+- /var/lib/libvirt/**/*.monitor
+- /var/lib/mlocate/*
+# we can exclude this because we will reinstall using rpm
+- /var/lib/rpm/**
+- /var/lib/xend/*-socket
+- /var/lib/**/dev/**
+- /var/lib/yum/history/**
+- /var/lib/yum/yumdb/**
+- /var/lib/yum/rpmdb-indexes/**
+- /var/lib/samba/winbindd_privileged/*
+# huge sparse file, last login database
+- /var/log/lastlog
+# very verbose zypper log file, /var/log/zypp/history is much more helpful
+- /var/log/zypper.log*
+- /var/lock/**
+- /var/run/**
+- /var/spool/**
+EOF
+    fi
+
+    if [ -n "$EXCL" ]; then
+	cat $EXCL >>exclude.txt
+    fi
+
+    cat noverify.txt >>exclude.txt
+    cat rpmfiles.txt >>exclude.txt
+
+    if [ o$NOEX != oyes ]; then
+	cat >>exclude.txt <<EOF
+# generated by plymouth rpm
+- /boot/initrd-plymouth.img
+# generated by prelink
+- /etc/prelink.cache
+# autogenerated by udev/systemd
+- /etc/udev/hwdb.bin
+# generated by sepolgen / semodule?
+- /var/lib/sepolgen/interface_info
+# java autogenerated, big
+- /usr/lib/jvm/**/classes.jsa
+# files generated when kernel is installed
+- /lib/modules/*/modules.*
+- /usr/lib/modules/*/modules.*
+# file generated when info files are installed
+- /usr/share/info/dir
+- /var/lib/clamav/**
+- /var/lib/docker/init/dockerinit-*
+- /var/lib/oprofile/**
+- /var/lib/texmf/**/*.fmt
+- /var/lib/texmf/**/*.log
+- /var/lib/samba/winbindd_cache*
+- /var/lib/yum/yumdb/**
+- /var/lib/yum/rpmdb-indexes/**
+# !!!
+- /var/log/**
+- *.pyc
+- #*
+- .#*
+- *~
+- **/cache/**
+- **/Cache/**
+- **/.adobe/**
+- **/.beagle/**
+- **/.cache/**
+- **/.ccache/**
+- **/fonts.cache*/**
+- **/.kde/cache*/**
+- **/.debug/**
+- **/.mozilla/**/OfflineCache/**
+- /home/.ecryptfs/*/.Private/**
+- core.*
+EOF
+    fi
+}
+
+rm -rf img/
+mkdir -p img/
+
+MNTP=$(for x in $MNTP; do echo $x; done  | sort)
+CMD=""
+
+for x in $MNTP; do 
+    case $x in 
+	/) 	excl=exclude.txt;; 
+	*) 	x=$x/
+		xpat=$(echo "$x"|sed s,/,_,g)
+		excl=exclude"$xpat".txt
+    		sed -n '
+\,^[+-] [^/],p
+s,^\([+-] \)'"$x"',\1/,p' <exclude.txt >exclude"$xpat".txt
+		;; 
+    esac
+    [ -d "$TMPD/img$x" ] || mkdir -p  "$TMPD/img$x"     
+    if [ -z "$LAST" ]; then
+	CMD="rsync $DEBUG $DOIT -aHAXxmS --exclude-from="$excl" \"$x\" \"$TMPD/img$x\""
+    else
+	mkdir -p "$LAST"/img"$x"
+	if type selinuxenabled &>/dev/null && selinuxenabled; then
+	    chcon --reference $x "$LAST"/img"$x"
+	fi
+	CMD="rsync $DEBUG $DOIT -aHAXxmS --link-dest=\"$LAST\"/img$x --exclude-from="$excl" \"$x\" \"$TMPD/img$x\""
+    fi
+    cry COMMAND: "$CMD"
+    eval "$CMD"
+done
+cry done.
+
+case $DOIT in 
+    -n*) DONE=yes; exit 0;; 
+esac
+
+if [ -n "$LAST" ]; then
+    echo "LAST=$LAST" >last.txt
+    cry creating differential star archive
+    if [ ! -f "$TMPD"/diff-exclude.txt ]; then
+        rsync -anvHAXS --delete "$TMPD"/img/ "$LAST"/img/ 2>/dev/null | \
+		head -n -3 | tail -n +2 | \
+		sed -n '
+/^deleting .*\/$/ {
+	s/^deleting /rmdir /
+	w '"$TMPD"'/delete.txt
+	d
+}
+/^deleting/ {
+	s/^deleting /rm -f /
+	w '"$TMPD"'/delete.txt
+	d
+}
+## " ->  " is a symbolic link in rsync output, cant be parsed
+s/ -> .*$/*/
+s/^/+ /p
+$a\
++ */\
+- *
+' >"$TMPD"/diff-exclude.txt
+    fi
+    rm -rf "$TMPD"/diff-img 
+    mkdir -p "$TMPD"/diff-img
+    rsync -aHAXSm --exclude-from="$TMPD"/diff-exclude.txt "$TMPD"/img/ "$TMPD"/diff-img/
+    rm -f "$TMPD"/diff-img.star.bz2
+    rm -rf "$TMPD"/img
+    if star c $STAR_C_FLAGS -f "$TMPD"/diff-img.star.bz2 -C "$TMPD"/diff-img .; then
+	cry done
+	DONE=yes
+	rm -rf "$TMPD"/diff-img
+    else
+	cry star failed, keeping "$TMPD"/diff-img
+    fi
+else
+    cry creating star archive
+    rm -f "$TMPD"/img.star.bz2
+    if star c $STAR_C_FLAGS -f "$TMPD"/img.star.bz2 -C "$TMPD"/img .; then
+	cry done
+	DONE=yes
+	if [ x$KEEP = xyes ]; then
+	    cry keeping "$TMPD"/img
+	else
+	    rm -rf "$TMPD"/img
+	fi
+    else
+	cry star failed, keeping "$TMPD"/img
+    fi
+fi
+

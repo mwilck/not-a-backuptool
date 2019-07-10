@@ -1,0 +1,63 @@
+#! /bin/bash
+# STAR_X_FLAGS="-j -U -force-remove -force-hole -keep-nonempty-dirs -remove-first -acl -xattr -sparse"
+STAR_X_FLAGS="-j -U -force-remove -force-hole -keep-nonempty-dirs -remove-first -acl -sparse -no-secure-links"
+RSYNC_FLAGS="-aHAXS"
+
+usage="usage: $0 dir"
+[ -n "$1" -a -d "$1" ] || die $usage
+
+CLEANUP="cry Done."
+trap 'eval $CLEANUP' 0
+
+cry() { echo "$@" >&2; }
+die() { cry "FATAL: $@"; exit 129; }
+
+add_cleanup() {
+    CLEANUP="$1; $CLEANUP"
+}
+
+cmd() {
+    cry "executing: $@"
+    eval "$@"
+}
+
+access_file() {
+    [ -f "$1" ] && return
+    [ -f "$1".bz2 ] || return
+    add_cleanup "rm -f \"$1\""
+    bzip2 -dc "$1".bz2 >"$1"
+}
+
+get_img() {
+    [ -d "$1" ] || die $1 is not a directory
+    set x $(cd "$1" && pwd); shift
+    if [ -d "$1"/img ]; then
+	cry "$1"/img exists.
+    elif [ -f "$1"/img.star.bz2 ]; then
+	cry creating $1/img from $1/img.star.bz2
+	mkdir "$1"/img
+	cmd star x $STAR_X_FLAGS -V pat=var/log/lastlog -C "$1"/img -f "$1"/img.star.bz2
+    elif [ -f "$1"/diff-img.star.bz2 ]; then
+	access_file "$1"/last.txt
+	[ -f "$1"/last.txt ] || die "$1"/last.txt not found
+	LAST=
+	. "$1"/last.txt # sets LAST
+	[ -n "$LAST" -a -d "$LAST" ] || die LAST=$LAST is not a directory
+	[ -d "$LAST"/img ] || {
+	    cry creating $1/img from $LAST
+	    add_cleanup "rm -rf \"$LAST\"/img"
+	    # recursively call myself. 
+	    # Recursion is needed due to use of global variables (TMPD, LAST)
+	    "$0" "$LAST" || die failed to create $LAST/img
+	}
+	mkdir "$1"/img
+	cmd rsync $RSYNC_FLAGS "$LAST"/img/ "$1"/img/
+	access_file "$1"/delete.txt
+	[ -f "$1"/delete.txt ] && (cd "$1"/img; cmd sh "$1"/delete.txt)
+	cmd star x $STAR_X_FLAGS -C "$1"/img -f "$1"/diff-img.star.bz2
+    else
+	die cannot create $1/img
+    fi
+}
+
+get_img "$1"
