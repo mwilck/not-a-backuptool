@@ -17,7 +17,8 @@ die() { cry "FATAL: $@"; exit 129; }
 
 STAR_C_FLAGS="-j H=exustar -dump -sparse -acl" # " -xattr-linux"
 CLEANUP=""
-TXTFILES=(delete diff-exclude exclude last noverify rpmfiles rpmlist)
+TXTFILES=(delete diff-exclude exclude noverify rpmfiles)
+TXTFILES_KEEP=(last rpmlist log)
 DONE=
 trap 'trap - ERR; echo error in $BASH_COMMAND, abort >&2' ERR
 trap 'trap - 0; set +e; echo $CLEANUP >&2; eval "$CLEANUP"' 0
@@ -75,23 +76,25 @@ fi
 cd "$TMPD"
 exec 10>&2
 exec 2>log.txt 1>&2
-add_cleanup 'cat log.txt >&10'
 add_cleanup 'exec 2>&10 1>&10'
 
 [ o$REMOVE = oyes -a x$DOIT = x ] && {
     # Syntax: list of all elements of TXTFILES, end of string replaced by ".txt"
     rm -f ${TXTFILES[@]/%/.txt}
     rm -f ${TXTFILES[@]/%/.txt.bz2}
-    rm -f rpmlist.txt.bz2 noverify.txt.bz2 rpmfiles.txt.bz2 exclude.txt.bz2 log.txt.bz2
+    rm -f ${TXTFILES_KEEP[@]/%/.txt}
+    rm -f ${TXTFILES_KEEP[@]/%/.txt.bz2}
     rm -rf img
 }
 
-for x in ${TXTFILES[@]}; do 
-    if [ -f $x.txt.bz2 -a ! -f $x.txt ]; then
+for x in ${TXTFILES[@]} ${TXTFILES_KEEP[@]}; do 
+    if [ -f $x.txt.bz2 ] && [ ! -f $x.txt -o $x.txt.bz2 -nt $x.txt ]; then
         bunzip2 $x.txt.bz2
     fi
 done
 
+add_cleanup 'bzip2 -9f ${TXTFILES_KEEP[@]/%/.txt}'
+add_cleanup 'cat log.txt >&10'
 if [[ o$KEEP = oyes ]]; then
    add_cleanup 'bzip2 -9f ${TXTFILES[@]/%/.txt}'
 else
@@ -373,7 +376,7 @@ $a\
     mkdir -p "$TMPD"/diff-img
     rsync -aHAXSm --exclude-from="$TMPD"/diff-exclude.txt "$TMPD"/img/ "$TMPD"/diff-img/
     rm -f "$TMPD"/diff-img.star.bz2
-    rm -rf "$TMPD"/img
+    # Don't delete img here, will be done with next incremental update
     if star c $STAR_C_FLAGS -f "$TMPD"/diff-img.star.bz2 -C "$TMPD"/diff-img .; then
 	cry done
 	DONE=yes
