@@ -7,7 +7,7 @@
 : ${CONF:=/root}
 : ${NAME:=apollon.dup}
 : ${KEY:=63D76654}
-: ${OPTS:="--volsize 500 -v5 --allow-source-mismatch"}
+: ${OPTS:="--volsize 500 -v2 --allow-source-mismatch"}
 : ${DRY:=--dry-run}
 : ${FULL:=}
 : ${ACTION:=backup}
@@ -150,9 +150,13 @@ includelist() {
 - /**/.config/Blue Jeans
 + /home/*/.config/libreoffice/*/user/config
 - /**/.config/libreoffice/*
+- /**/.config/google-chrome/BrowserMetrics-spare.pma
+- /**/.config/google-chrome/CertificateRevocation
+- /**/.config/google-chrome/CertificateTransparency
 - /**/.config/google-chrome/Crash*
 - /**/.config/google-chrome/*/Cookies
 - /**/.config/google-chrome/*/Extensions
+- /**/.config/google-chrome/*/IndexedDB
 - /**/.config/pulse/*.conf
 - /**/.config/pulse/*.pa
 - /**/.config/pulse
@@ -194,6 +198,7 @@ includelist() {
 - /**/.macromedia/Flash_Player
 - /**/.mozilla/*/extensions
 - /**/.mozilla/Crash*
+- /**/.mozilla/firefox/*/bookmarkbackups
 - /**/.mozilla/firefox/*/crashes
 - /**/.mozilla/firefox/*/datareporting
 - /**/.mozilla/firefox/*/saved-telemetry-pings
