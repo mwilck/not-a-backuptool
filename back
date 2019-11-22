@@ -7,7 +7,7 @@
 : ${CONF:=/root}
 : ${NAME:=apollon.dup}
 : ${KEY:=63D76654}
-: ${OPTS:="--volsize 500 -v2 --allow-source-mismatch"}
+: ${OPTS:="--volsize 500 -v3 --allow-source-mismatch"}
 : ${DRY:=--dry-run}
 : ${FULL:=}
 : ${ACTION:=backup}
