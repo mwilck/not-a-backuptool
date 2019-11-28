@@ -169,6 +169,7 @@ includelist() {
 - /**/.emacs.d/auto-save-list
 - /**/.emacs.d/session.*
 - /**/.fontconfig/*.cache*
+- /**/.gem
 - /**/.java/deployment/log
 - /**/.java/deployment/tmp
 - /**/.gnome2/totem-addons
