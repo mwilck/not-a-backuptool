@@ -119,6 +119,11 @@ case $1 in
     *)  die usage: "$0 [back]";;
 esac
 
+TMPDIR=$(mktemp -d "$TMPROOT"/back-XXXXXX)
+[[ -d "$TMPDIR" ]]
+export TMPDIR
+CLEANUP='rm -rf $TMPDIR;'"$CLEANUP"
+
 case $ACTION in
     list)
 	check_backup_host
@@ -156,8 +161,6 @@ else
     [[ -n "$FULL" ]] || { die "incremental update requested but no previous backup found"; }
 fi
 
-TMPDIR=$(mktemp -d "$TMPROOT"/back-XXXXXX)
-CLEANUP='rm -rf $TMPDIR;'"$CLEANUP"
 
 if [[ -z "$DRY" ]]; then
     if [[ $TTY ]]; then
