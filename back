@@ -220,6 +220,7 @@ includelist() {
 + /home/.ecryptfs/*/.ecryptfs
 - /home/.ecryptfs
 - %HOME%/.DCOPserver_*
+- %HOME%/.adobe
 - %HOME%/.beagle
 - %HOME%/.aMule
 - %HOME%/.cddb
@@ -244,6 +245,7 @@ includelist() {
 - %HOME%/.dvdcss
 - %HOME%/.ee
 - %HOME%/.emacs.d/auto-save-list
+- %HOME%/.emacs.d/elpa
 - %HOME%/.emacs.d/session.*
 - %HOME%/.fontconfig/*.cache*
 - %HOME%/.gem
@@ -260,6 +262,7 @@ includelist() {
 - %HOME%/.kde/share/apps/ktorrent/tor*
 - %HOME%/.kde/share/apps/kconf_update/log
 - %HOME%/.kde/tmp-*
+- %HOME%/.local/lib/python*/site-packages
 - %HOME%/.local/share/DisplayCAL/logs
 - %HOME%/.local/share/gnome-do
 - %HOME%/.local/share/gnome-shell/extensions
@@ -267,6 +270,7 @@ includelist() {
 - %HOME%/.local/share/gpaste
 - %HOME%/.local/share/gvfs-metadata
 - %HOME%/.local/share/icons
+- %HOME%/.local/share/linphone
 - %HOME%/.local/share/parcellite
 - %HOME%/.local/share/shotwell/data
 - %HOME%/.local/share/tracker/data
@@ -290,6 +294,10 @@ includelist() {
 - %HOME%/.mythtv/themecache
 - %HOME%/.npm
 - %HOME%/.ssh/agent-*q
+- %HOME%/.texlive*/*/extensions
+- %HOME%/.texlive*/texmf-var
+- %HOME%/.webex
+- %HOME%/.xdg_menu_cache
 - %HOME%/.thunderbird/*/extensions
 - %HOME%/.thunderbird/*/saved-telemetry-pings
 - %HOME%/.thunderbird/Crash*
@@ -300,10 +308,16 @@ includelist() {
 - %HOME%/.texmf-var
 - %HOME%/.**.scantemp.pnm
 - %HOME%/.**.previewtemp.pnm
-- %HOME%/.**[cC]ache
-- %HOME%/.**[tT]rash
-- %HOME%/.**[tT]humbnails
+- %HOME%/.wine/drive_c
+- %HOME%/*/.wine/drive_c
+- ignorecase:/**/cache
+- ignorecase:/**/trash
+- ignorecase:/**/thumbnails
+- ignorecase:/**/.cache
+- ignorecase:/**/.trash
+- ignorecase:/**/.thumbnails
 - %HOME%/Dropbox
+- %HOME%/**/GPUCache
 - %HOME%/gtk-gnutella-downloads
 - /home/*/rpmbuild
 - /var/log/cups
