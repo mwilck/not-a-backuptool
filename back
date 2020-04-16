@@ -60,6 +60,12 @@ fi
 
 LOG="$LOGDIR/back-$NAME.log"
 TTY=$(tty) || TTY=
+GPG_TTY=$TTY
+export GPG_TTY
+
+if [[ $TTY ]]; then
+	OPTS="$OPTS --gpg-options='--pinentry-mode=ask'"
+fi
 
 [[ $BACKUP ]]
 [[ $BACKUP_HOST ]]
