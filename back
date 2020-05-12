@@ -169,7 +169,7 @@ fi
 
 
 if [[ -z "$DRY" ]]; then
-    if [[ $TTY ]]; then
+    if [[ $TTY && $BACKUP != *sftp* ]]; then
 	cry REAL RUN, last chance to exit
 	sleep 5
     fi
