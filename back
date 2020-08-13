@@ -3,6 +3,21 @@ export LC_ALL=C
 CLEANUP=''
 ERRCODE=129
 
+## Sample sudo / ssh configuration:
+#
+# -- sudoers:
+# Defaults!BACK env_keep+="SSH_AUTH_SOCK"
+# Cmnd_Alias BACK = /usr/local/bin/back
+# mwilck apollon=(root) NOPASSWD: BACK
+#
+# -- .ssh/config:
+# Host backup
+#        HostName nasobem.local
+#        User apollon
+#        IdentityFile id_bck
+#        PubkeyAcceptedKeyTypes=ssh-rsa
+#        KexAlgorithms diffie-hellman-group-exchange-sha1
+
 cry() { echo "== $0: $@ ==" >&2; };
 die() { cry FATAL: "$@"; exit $ERRCODE; }
 
@@ -36,6 +51,8 @@ fi
 : ${SRC:=/}
 : ${BACKUP_HOST:=nasobem.local}
 : ${NAME:=apollon.dup}
+# The :://backup// syntax requires a host "backup" defined in /root/.ssh/config
+# Make sure to define Algorithms and keytypes there, too, as supported by the host
 : ${BACKUP:=pexpect+sftp://backup//c/backup/"${NAME}"}
 : ${SSH_IDENTITY:=/root/.ssh/id_bck}
 : ${KEY:=63D76654}
@@ -100,6 +117,8 @@ check_backup_host() {
 add_ssh_id() {
     case $BACKUP in
 	*sftp*)
+	    # with GPG, ssh-add is not needed, will be done as required
+	    if [[ $SSH_AUTH_SOCK = *gnupg* ]]; then return; fi
 	    [[ $SSH_IDENTITY ]]
 	    ssh-add -l | grep -q "$SSH_IDENTITY" || {
 		ssh-add -q -t "$SSH_LIFE" "$SSH_IDENTITY" </dev/null
@@ -376,4 +395,7 @@ EOF
 includelist "$TMPDIR/include.txt"
 [[ $DEBUG -eq 0 ]] || cat "$TMPDIR/include.txt"
 
-cmd $DUPLICITY $FULL $DRY $OPTS --exclude-filelist "$TMPDIR/include.txt" --archive-dir "$CACHE" --name $NAME --encrypt-key $KEY "$SRC" "$BACKUP"
+cmd $DUPLICITY $FULL $DRY $OPTS \
+    --exclude-filelist "$TMPDIR/include.txt" \
+    --archive-dir "$CACHE" \
+    --name $NAME --encrypt-key $KEY "$SRC" "$BACKUP"
