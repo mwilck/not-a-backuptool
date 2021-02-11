@@ -41,26 +41,32 @@ check_permissions "$0"
 
 [ $UID -eq 0 ] || exec sudo "$0" "$@"
 
+# NOTE ! NOTE ! NOTE ! - configuration
 CONF=/root
 [[ -d "$CONF" ]]
-if [[ -r "$CONF"/.backup.conf ]]; then
+if [[ -r "$CONF"/.backup.conf.${BACK_NAME} ]]; then
+    check_permissions "$CONF"/.backup.conf.${BACK_NAME}
+    source "$CONF"/.backup.conf.${BACK_NAME}
+elif [[ -r "$CONF"/.backup.conf ]]; then
     check_permissions "$CONF"/.backup.conf
     source "$CONF"/.backup.conf
 fi
 
-: ${SRC:=/}
+: ${BACK_SRC:=/}
 : ${BACKUP_HOST:=nasobem.local}
-: ${NAME:=apollon.dup}
-# The :://backup// syntax requires a host "backup" defined in /root/.ssh/config
+: ${BACK_NAME:=apollon.dup}
+: ${BACK_PROFILE:=backup}
+# The :://$BACK_PROFILE// syntax requires a host "$BACK_PROFILE" defined in /root/.ssh/config
 # Make sure to define Algorithms and keytypes there, too, as supported by the host
-: ${BACKUP:=pexpect+sftp://backup//c/backup/"${NAME}"}
+: ${BACKUP:=pexpect+sftp://"${BACK_PROFILE}"//c/backup/"${BACK_NAME}"}
 : ${SSH_IDENTITY:=/root/.ssh/id_bck}
 : ${KEY:=63D76654}
 : ${INTERVAL:=$((3600*4-30))}
-: ${DEBUG:=0}
+: ${BACK_DEBUG:=0}
 : ${TMPROOT:=/tmp}
 : ${LOGDIR:=/var/log}
 : ${NOBACKUP:=_NOBACKUP_}
+: ${SKIP_INCLUDELIST:=}
 
 : ${CACHE:=/root/.cache/duplicity}
 : ${GNUPGHOME:="$CONF"/.gnupg}
@@ -75,7 +81,7 @@ fi
 : ${WARN_INTERVAL:=$((3600*24*7))}
 : ${DUPLICITY:=duplicity}
 
-LOG="$LOGDIR/back-$NAME.log"
+LOG="$LOGDIR/back-$BACK_NAME.log"
 TTY=$(tty) || TTY=
 GPG_TTY=$TTY
 export GPG_TTY
@@ -87,7 +93,7 @@ fi
 [[ $BACKUP ]]
 [[ $BACKUP_HOST ]]
 [[ $KEY ]]
-[[ $SRC && -d "$SRC" ]]
+[[ $BACK_SRC && -d "$BACK_SRC" ]]
 [[ $GNUPGHOME && -d "$GNUPGHOME" ]]
 [[ $CACHE && -d "$CACHE" ]]
 [[ $TMPROOT && -d "$TMPROOT" ]]
@@ -129,7 +135,7 @@ add_ssh_id() {
 
 case $1 in
     back)
-	DRY=
+	DRY
 	;;
     full)
 	DRY=
@@ -153,11 +159,11 @@ case $ACTION in
     list)
 	check_backup_host
 	add_ssh_id
-	cmd $DUPLICITY list-current-files --archive-dir "$CACHE" --name "$NAME" --encrypt-key "$KEY" "$@" "$BACKUP"
+	cmd $DUPLICITY list-current-files --archive-dir "$CACHE" --name "$BACK_NAME" --encrypt-key "$KEY" "$@" "$BACKUP"
 	exit 0
 	;;
     restore)
-	TRG=$(mktemp -d /tmp/back-XXXXXX)
+	TRG=$(mktemp -d "$TMPROOT"/restore-XXXXXX)
 	if [[ $1 ]]; then
 	    ARGS="--file-to-restore \"$1\""
 	    shift
@@ -167,12 +173,12 @@ case $ACTION in
 	check_backup_host
 	add_ssh_id
 	cry restoring to $TRG
-	cmd $DUPLICITY restore $ARGS --archive-dir "$CACHE" --name "$NAME" --encrypt-key "$KEY" "$@" "$BACKUP" "$TRG"
+	cmd $DUPLICITY restore $ARGS --archive-dir "$CACHE" --name "$BACK_NAME" --encrypt-key "$KEY" "$@" "$BACKUP" "$TRG"
 	exit 0
 	;;
 esac
 
-last=$(ls -t "$CACHE/$NAME"/*.manifest 2>/dev/null | head -1)
+last=$(ls -t "$CACHE/$BACK_NAME"/*.manifest 2>/dev/null | head -1)
 if [[ -f "$last" ]]; then
     ts=$(stat -c %Y "$last")
     now=$(date +%s)
@@ -192,7 +198,7 @@ if [[ -z "$DRY" ]]; then
 	cry REAL RUN, last chance to exit
 	sleep 5
     fi
-    [[ $DEBUG -le 0 ]] || cry log file is $LOG
+    [[ $BACK_DEBUG -le 0 ]] || cry log file is $LOG
     exec >>"$TMPDIR/log" 2>&1
     CLEANUP='cat "$TMPDIR/log" >>"$LOG";'"$CLEANUP"
 fi
@@ -225,13 +231,15 @@ subst_home() {
 # early in this list. Try not to use broad wildcards, in particular '**',
 # for include directives.
 includelist() {
-    rm -f "$1"
-    if [ -f "$CONF"/.backup.include.early ]; then
+    if [ -f "$CONF"/.backup.include.early.${BACK_NAME} ]; then
+	check_permissions "$CONF"/.backup.include.early.${BACK_NAME}
+	subst_home < "$CONF"/.backup.include.early.${BACK_NAME}
+    elif [ -f "$CONF"/.backup.include.early ]; then
 	check_permissions "$CONF"/.backup.include.early
-	subst_home < "$CONF"/.backup.include.early >>"$1"
+	subst_home < "$CONF"/.backup.include.early
     fi
-    echo "- $CACHE/$NAME" >>$1
-    subst_home >>"$1" <<\EOF
+    [[ $SKIP_INCLUDELIST ]] || echo "- $CACHE/$BACK_NAME"
+    [[ $SKIP_INCLUDELIST ]] || subst_home <<\EOF
 - /.snapshots
 - /suse
 - /mounts
@@ -386,16 +394,19 @@ includelist() {
 + /home
 EOF
 
-    if [ -f $CONF/.backup.include.late ]; then
-	subst_home <$CONF/.backup.include.late >>"$1"
+    if [ -f $CONF/.backup.include.late.${BACK_NAME} ]; then
+	subst_home <$CONF/.backup.include.late.${BACK_NAME}
+    elif [ -f $CONF/.backup.include.late ]; then
+	subst_home <$CONF/.backup.include.late
     fi
-    echo '- /*' >>"$1"
+    echo '- /*'
 }
 
-includelist "$TMPDIR/include.txt"
-[[ $DEBUG -eq 0 ]] || cat "$TMPDIR/include.txt"
+rm -f "$TMPDIR/include.txt"
+includelist | sed 's,^\([-+] \)/,\1'"$BACK_SRC"',' >"$TMPDIR/include.txt"
+[[ $BACK_DEBUG -eq 0 ]] || cat "$TMPDIR/include.txt"
 
 cmd $DUPLICITY $FULL $DRY $OPTS \
     --exclude-filelist "$TMPDIR/include.txt" \
     --archive-dir "$CACHE" \
-    --name $NAME --encrypt-key $KEY "$SRC" "$BACKUP"
+    --name $BACK_NAME --encrypt-key $KEY "$BACK_SRC" "$BACKUP"
