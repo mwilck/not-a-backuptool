@@ -135,7 +135,7 @@ add_ssh_id() {
 
 case $1 in
     back)
-	DRY
+	DRY=
 	;;
     full)
 	DRY=
