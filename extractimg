@@ -85,7 +85,10 @@ doinstall basic.txt
 doinstall toinstall.txt
 
 cry extracting other files ...
-(cd $MNTP; star -x -j -U -force-remove -remove-first -acl -xattr -f $TMPD/img.star.bz2) > extract.txt 2>&1
+cd $MNTP
+star -x -j -U -force-remove -remove-first -acl -xattr-linux -f $TMPD/img.star.bz2 > extract.txt 2>&1
+cd -
+
 cry done.
 
 bzip2 -9f install_log.txt
