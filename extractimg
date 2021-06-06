@@ -51,17 +51,19 @@ zypper $ZCMD $(cat $1) >>install_log.txt 2>&1
 res=$?
 set -e
 while [ $res -eq 104 ]; do
-    notfound=$(sed -n 's/^'"'"'\([^'"'"']*\)'"'"' not found\..*$/\1/p' install_log.txt)
-    [ -n "$notfound" ] || die no missing file found in $PWD/install_log.txt
-    echo $notfound was missing >&2
-    case $notfound in 
-	*\>=*) echo trying no version for $notfound >&2
-	      sed -i '/'"$notfound"'/s/>=.*$//' $1;;
-    	*=*)  echo trying '>=' for $notfound >&2
-	      sed -i '/'"$notfound"'/s/=/>=/' $1;;
-	*)    echo ERROR: cannot find $notfound >&2
-	      sed -i '/'"$notfound"'/d' $1;;
-    esac
+    allnotfound=$(sed -n 's/^'"'"'\([^'"'"']*\)'"'"' not found.*$/\1/p' install_log.txt)
+    [ -n "$allnotfound" ] || die no missing file found in $PWD/install_log.txt
+    for notfound in $allnotfound; do
+	echo $notfound was missing >&2
+	case $notfound in 
+	    *\>=*) echo trying no version for $notfound >&2
+		   sed -i '/'"$notfound"'/s/>=.*$//' $1;;
+    	    *=*)  echo trying '>=' for $notfound >&2
+		  sed -i '/'"$notfound"'/s/=/>=/' $1;;
+	    *)    echo ERROR: cannot find $notfound >&2
+		  sed -i '/'"$notfound"'/d' $1;;
+	esac
+    done
     echo trying to install $(cat $1) ... >&2
     set +e
     zypper $ZCMD $(cat $1) >>install_log.txt 2>&1
