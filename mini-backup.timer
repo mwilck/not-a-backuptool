@@ -1,0 +1,11 @@
+[Unit]
+Description=Minimal backup timer
+Wants=local-fs.target
+After=local-fs.target
+
+[Timer]
+OnCalendar=04:10:00
+Persistent=yes
+
+[Install]
+WantedBy=multi-user.target

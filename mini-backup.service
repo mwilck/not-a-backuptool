@@ -1,0 +1,13 @@
+[Unit]
+Description=Tiny backup
+Wants=autofs.service network-online.target
+After=autofs.service network-online.target
+
+[Service]
+Type=oneshot
+Group=backup
+ExecStart=/usr/local/bin/createimg -x /root/creatimg-exclude.txt -d AUTO -l AUTO
+ExecStartPost=-/usr/local/bin/img-to-nasobem
+
+[Install]
+WantedBy=multi-user.target
