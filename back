@@ -343,6 +343,7 @@ includelist() {
 - %HOME%/.texmf-var
 - %HOME%/.**.scantemp.pnm
 - %HOME%/.**.previewtemp.pnm
+- %HOME%/.var/app
 - %HOME%/.wine/drive_c
 - %HOME%/*/.wine/drive_c
 - ignorecase:/**/cache
