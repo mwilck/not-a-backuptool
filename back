@@ -10,13 +10,15 @@ ERRCODE=129
 # Cmnd_Alias BACK = /usr/local/bin/back
 # mwilck apollon=(root) NOPASSWD: BACK
 #
-# -- .ssh/config:
+# -- /root/.ssh/config:
 # Host backup
-#        HostName nasobem.local
-#        User apollon
-#        IdentityFile id_bck
-#        PubkeyAcceptedKeyTypes=ssh-rsa
-#        KexAlgorithms diffie-hellman-group-exchange-sha1
+#         HostName nasobem.local
+#         User apollon
+#         IdentityFile id_bck
+#         KexAlgorithms +diffie-hellman-group14-sha1
+#         PubkeyAcceptedKeyTypes +ssh-rsa
+#         HostKeyAlgorithms +ssh-rsa
+#         Macs +hmac-sha1
 
 cry() { echo "== $0: $@ ==" >&2; };
 die() { cry FATAL: "$@"; exit $ERRCODE; }
