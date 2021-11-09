@@ -6,9 +6,11 @@ ERRCODE=129
 ## Sample sudo / ssh configuration:
 #
 # -- sudoers:
-# Defaults!BACK env_keep+="SSH_AUTH_SOCK"
+# Defaults!BACK env_keep+="SSH_AUTH_SOCK BACK_NAME BACK_USER BACK_SRC BACK_DEBUG SKIP_INCLUDELIST"
 # Cmnd_Alias BACK = /usr/local/bin/back
 # mwilck apollon=(root) NOPASSWD: BACK
+# # or
+# %wheel apollon=(root) NOPASSWD: BACK
 #
 # -- /root/.ssh/config:
 # Host backup
