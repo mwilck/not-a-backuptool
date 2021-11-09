@@ -175,7 +175,7 @@ case $ACTION in
 	check_backup_host
 	add_ssh_id
 	cry restoring to $TRG
-	cmd $DUPLICITY restore $ARGS --archive-dir "$CACHE" --name "$BACK_NAME" --encrypt-key "$KEY" "$@" "$BACKUP" "$TRG"
+	cmd $DUPLICITY restore -v${VERBOSITY} $ARGS --archive-dir "$CACHE" --name "$BACK_NAME" --encrypt-key "$KEY" "$@" "$BACKUP" "$TRG"
 	exit 0
 	;;
 esac
