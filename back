@@ -14,7 +14,7 @@ ERRCODE=129
 # Host backup
 #         HostName nasobem.local
 #         User apollon
-#         IdentityFile id_bck
+#         IdentityFile /root/.ssh/id_bck
 #         KexAlgorithms +diffie-hellman-group14-sha1
 #         PubkeyAcceptedKeyTypes +ssh-rsa
 #         HostKeyAlgorithms +ssh-rsa
