@@ -326,6 +326,7 @@ includelist() {
 - %HOME%/.kde/tmp-*
 - %HOME%/.local/lib/python*/site-packages
 - %HOME%/.local/share/DisplayCAL/logs
+- %HOME%/.local/share/flatpak
 - %HOME%/.local/share/gnome-do
 - %HOME%/.local/share/gnome-shell/extensions
 - %HOME%/.local/share/gnome-software
