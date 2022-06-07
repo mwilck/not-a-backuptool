@@ -45,6 +45,12 @@ check_permissions "$0"
 
 [ $UID -eq 0 ] || exec sudo "$0" "$@"
 
+if [[ ! $BACK_NAME ]]; then
+    BACK_NAME=$(hostname)
+    [[ $BACK_NAME ]]
+    BACK_NAME=${BACK_NAME%%.*}.dup
+fi
+
 # NOTE ! NOTE ! NOTE ! - configuration
 CONF=/root
 [[ -d "$CONF" ]]
@@ -58,7 +64,6 @@ fi
 
 : ${BACK_SRC:=/}
 : ${BACKUP_HOST:=nasobem.local}
-: ${BACK_NAME:=apollon.dup}
 : ${BACK_PROFILE:=backup}
 # The :://$BACK_PROFILE// syntax requires a host "$BACK_PROFILE" defined in /root/.ssh/config
 # Make sure to define Algorithms and keytypes there, too, as supported by the host
