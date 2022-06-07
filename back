@@ -356,6 +356,9 @@ includelist() {
 - %HOME%/.mozilla-thunderbird/*/extensions
 - %HOME%/.mozilla-thunderbird/*/saved-telemetry-pings
 - %HOME%/.mozilla-thunderbird/Crash*
+- %HOME%/.thunderbird/*/extensions
+- %HOME%/.thunderbird/*/saved-telemetry-pings
+- %HOME%/.thunderbird/Crash*
 - %HOME%/.mythtv/themecache
 - %HOME%/.npm
 - %HOME%/.ssh/agent-*q
