@@ -1,0 +1,417 @@
+#! /bin/bash
+export LC_ALL=C
+CLEANUP=''
+ERRCODE=129
+
+## Sample sudo / ssh configuration:
+#
+# -- sudoers:
+# Defaults!BACK env_keep+="SSH_AUTH_SOCK BACK_NAME BACK_USER BACK_SRC BACK_DEBUG SKIP_INCLUDELIST"
+# Cmnd_Alias BACK = /usr/local/bin/back
+# mwilck apollon=(root) NOPASSWD: BACK
+# # or
+# %wheel apollon=(root) NOPASSWD: BACK
+#
+# -- /root/.ssh/config:
+# Host backup
+#         HostName nasobem.local
+#         User apollon
+#         IdentityFile /root/.ssh/id_bck
+#         KexAlgorithms +diffie-hellman-group14-sha1
+#         PubkeyAcceptedKeyTypes +ssh-rsa
+#         HostKeyAlgorithms +ssh-rsa
+#         Macs +hmac-sha1
+
+cry() { echo "== $0: $@ ==" >&2; };
+die() { cry FATAL: "$@"; exit $ERRCODE; }
+
+err() {
+    trap - ERR
+    cry Error executing "$BASH_COMMAND" at $LINE >&2
+    exit $ERRCODE
+}
+
+set -e -E
+trap 'LINE=$LINENO; err' ERR
+trap 'trap - 0; eval "$CLEANUP"' 0
+
+# Check that file is owned by root, that it has no suid
+# bits set, and that nobody except the ownner can write it
+check_permissions() {
+    [[ $(stat -c %u "$1") -eq 0 && \
+	   $(($(stat -c %#a "$1") & 06022)) -eq 0 ]]
+}
+check_permissions "$0"
+
+[ $UID -eq 0 ] || exec sudo "$0" "$@"
+
+# NOTE ! NOTE ! NOTE ! - configuration
+CONF=/root
+[[ -d "$CONF" ]]
+if [[ -r "$CONF"/.backup.conf.${BACK_NAME} ]]; then
+    check_permissions "$CONF"/.backup.conf.${BACK_NAME}
+    source "$CONF"/.backup.conf.${BACK_NAME}
+elif [[ -r "$CONF"/.backup.conf ]]; then
+    check_permissions "$CONF"/.backup.conf
+    source "$CONF"/.backup.conf
+fi
+
+: ${BACK_SRC:=/}
+: ${BACKUP_HOST:=nasobem.local}
+: ${BACK_NAME:=apollon.dup}
+: ${BACK_PROFILE:=backup}
+# The :://$BACK_PROFILE// syntax requires a host "$BACK_PROFILE" defined in /root/.ssh/config
+# Make sure to define Algorithms and keytypes there, too, as supported by the host
+: ${BACKUP:=pexpect+sftp://"${BACK_PROFILE}"//c/backup/"${BACK_NAME}"}
+: ${SSH_IDENTITY:=/root/.ssh/id_bck}
+: ${KEY:=63D76654}
+: ${INTERVAL:=$((3600*4-30))}
+: ${BACK_DEBUG:=0}
+: ${TMPROOT:=/tmp}
+: ${LOGDIR:=/var/log}
+: ${NOBACKUP:=_NOBACKUP_}
+: ${SKIP_INCLUDELIST:=}
+
+: ${CACHE:=/root/.cache/duplicity}
+: ${GNUPGHOME:="$CONF"/.gnupg}
+: ${EXTRA_OPTS:=}
+: ${VERBOSITY:=notice}
+: ${VOLSIZE:=512}
+: ${OPTS:="--volsize ${VOLSIZE} -v${VERBOSITY} ${NOBACKUP:+--exclude-if-present "$NOBACKUP"}  ${EXTRA_OPTS}"}
+: ${DRY:=--dry-run}
+: ${FULL:=}
+: ${SSH_LIFE:=7200}
+: ${ACTION:=backup}
+: ${WARN_INTERVAL:=$((3600*24*7))}
+: ${DUPLICITY:=duplicity}
+
+LOG="$LOGDIR/back-$BACK_NAME.log"
+TTY=$(tty) || TTY=
+GPG_TTY=$TTY
+export GPG_TTY
+
+if [[ $TTY ]]; then
+	OPTS="$OPTS --gpg-options='--pinentry-mode=ask'"
+fi
+
+[[ $BACKUP ]]
+[[ $BACKUP_HOST ]]
+[[ $KEY ]]
+[[ $BACK_SRC && -d "$BACK_SRC" ]]
+[[ $GNUPGHOME && -d "$GNUPGHOME" ]]
+[[ $CACHE && -d "$CACHE" ]]
+[[ $TMPROOT && -d "$TMPROOT" ]]
+export GNUPGHOME
+
+# avoid fileno limit
+ulimit -n 4096
+timestamp() { date +%Y-%m-%d.%H:%M:%S; }
+cmd() {
+    cry "$@"
+    eval "$@"
+}
+
+check_backup_host() {
+    # Try to resolve and ping the host, give up otherwise
+    IP=$(dig +short "$BACKUP_HOST")
+    [[ -n "$IP" ]] || IP=$(avahi-resolve -n "$BACKUP_HOST" | cut -f 2)
+    [[ -n "$IP" ]]
+    ping -c 1 "$IP" &>/dev/null
+
+    case $BACKUP in
+	/*) [[ -d "$BACKUP" ]];;
+	file://*) [[ -d "${BACKUP#file://}" ]];;
+    esac
+}
+
+add_ssh_id() {
+    case $BACKUP in
+	*sftp*)
+	    # with GPG, ssh-add is not needed, will be done as required
+	    if [[ $SSH_AUTH_SOCK = *gnupg* ]]; then return; fi
+	    [[ $SSH_IDENTITY ]]
+	    ssh-add -l | grep -q "$SSH_IDENTITY" || {
+		ssh-add -q -t "$SSH_LIFE" "$SSH_IDENTITY" </dev/null
+		CLEANUP='ssh-add -q -d "$SSH_IDENTITY";'"$CLEANUP"
+	    };;
+    esac
+}
+
+case $1 in
+    back)
+	DRY=
+	;;
+    full)
+	DRY=
+	FULL=full
+	INTERVAL=1
+	;;
+    list|restore)
+	ACTION=$1
+	shift
+	;;
+    "") ;;
+    *)  die usage: "$0 [back]";;
+esac
+
+TMPDIR=$(mktemp -d "$TMPROOT"/back-XXXXXX)
+[[ -d "$TMPDIR" ]]
+export TMPDIR
+CLEANUP='rm -rf $TMPDIR;'"$CLEANUP"
+
+case $ACTION in
+    list)
+	check_backup_host
+	add_ssh_id
+	cmd $DUPLICITY list-current-files --archive-dir "$CACHE" --name "$BACK_NAME" --encrypt-key "$KEY" "$@" "$BACKUP"
+	exit 0
+	;;
+    restore)
+	TRG=$(mktemp -d "$TMPROOT"/restore-XXXXXX)
+	if [[ $1 ]]; then
+	    ARGS="--file-to-restore \"$1\""
+	    shift
+	else
+	    ARGS=
+	fi
+	check_backup_host
+	add_ssh_id
+	cry restoring to $TRG
+	cmd $DUPLICITY restore -v${VERBOSITY} $ARGS --archive-dir "$CACHE" --name "$BACK_NAME" --encrypt-key "$KEY" "$@" "$BACKUP" "$TRG"
+	exit 0
+	;;
+esac
+
+last=$(ls -t "$CACHE/$BACK_NAME"/*.manifest 2>/dev/null | head -1)
+if [[ -f "$last" ]]; then
+    ts=$(stat -c %Y "$last")
+    now=$(date +%s)
+    if [[ $((now - ts < INTERVAL)) -eq 1 ]]; then
+	cry "Last backup is $((now-ts))s < ${INTERVAL}s old."
+	[[ $DRY ]] || { cry "Exiting."; exit 0; }
+    elif [[ $((now - ts > WARN_INTERVAL)) -eq 1 ]]; then
+	cry WARNING: last backup was $(((now - ts)/(3600*24))) days ago
+    fi
+else
+    [[ -n "$FULL" ]] || { die "incremental update requested but no previous backup found"; }
+fi
+
+
+if [[ -z "$DRY" ]]; then
+    if [[ $TTY && $BACKUP != *sftp* ]]; then
+	cry REAL RUN, last chance to exit
+	sleep 5
+    fi
+    [[ $BACK_DEBUG -le 0 ]] || cry log file is $LOG
+    exec >>"$TMPDIR/log" 2>&1
+    CLEANUP='cat "$TMPDIR/log" >>"$LOG";'"$CLEANUP"
+fi
+
+# Avoid cron mail for failed command unless no backup for WARN_INTERVAL
+if ! check_backup_host; then
+    if [[ $TTY || "o$WARN" = oyes ]]; then
+	exit 1
+    else
+	exit 0
+    fi
+fi
+
+add_ssh_id
+
+if [[ $TTY && -z $DRY ]]; then
+    echo Started at $(timestamp) >"$TTY"
+    CLEANUP='cat "$TMPDIR/log" >"$TTY"; echo Finished at $(timestamp) >"$TTY";'"$CLEANUP"
+fi
+cry Started at $(timestamp)
+CLEANUP='cry Finished at $(timestamp);'"$CLEANUP"
+
+# avoid using the very slow /**/ for $HOME subdirs
+subst_home() {
+    sed '/%HOME%/{h;s,%HOME%,/root,p;g;s,%HOME%,/home/*,}'
+}
+
+# CAUTION!!! Slow performance
+# Put directories that are supposed to be excluded completely
+# early in this list. Try not to use broad wildcards, in particular '**',
+# for include directives.
+includelist() {
+    if [ -f "$CONF"/.backup.include.early.${BACK_NAME} ]; then
+	check_permissions "$CONF"/.backup.include.early.${BACK_NAME}
+	subst_home < "$CONF"/.backup.include.early.${BACK_NAME}
+    elif [ -f "$CONF"/.backup.include.early ]; then
+	check_permissions "$CONF"/.backup.include.early
+	subst_home < "$CONF"/.backup.include.early
+    fi
+    [[ $SKIP_INCLUDELIST ]] || echo "- $CACHE/$BACK_NAME"
+    [[ $SKIP_INCLUDELIST ]] || subst_home <<\EOF
+- /.snapshots
+- /suse
+- /mounts
+- /net
+- /proc
+- /sys
+- /dev
+- /tmp
+- /run
+- /var/run
++ /home/.ecryptfs/*/.ecryptfs
+- /home/.ecryptfs
+- %HOME%/.DCOPserver_*
+- %HOME%/.adobe
+- %HOME%/.beagle
+- %HOME%/.aMule
+- %HOME%/.cddb
+- %HOME%/.compiz/session
+- %HOME%/.config/Blue Jeans
++ %HOME%/.config/libreoffice/*/user/config
+- %HOME%/.config/libreoffice/*
++ %HOME%/.config/google-chrome/*/Current*
++ %HOME%/.config/google-chrome/*/History*
++ %HOME%/.config/google-chrome/*/Last*
++ %HOME%/.config/google-chrome/*/Local Extension Settings
++ %HOME%/.config/google-chrome/Local State
+- %HOME%/.config/google-chrome
++ %HOME%/.config/pulse/*.conf
++ %HOME%/.config/pulse/*.pa
++ %HOME%/.config/pulse/equalizerrc
+- %HOME%/.config/pulse
+- %HOME%/.dbus/session-bus
+- %HOME%/.debug
+- %HOME%/.dropbox
+- %HOME%/.dropbox-dist
+- %HOME%/.dvdcss
+- %HOME%/.ee
+- %HOME%/.emacs.d/auto-save-list
+- %HOME%/.emacs.d/elpa
+- %HOME%/.emacs.d/session.*
+- %HOME%/.fontconfig/*.cache*
+- %HOME%/.gem
+- %HOME%/.java/deployment/log
+- %HOME%/.java/deployment/tmp
+- %HOME%/.gnome2/totem-addons
+- %HOME%/.hplip/hp-systray.lock
+- %HOME%/.kde4/share/apps/ktorrent/tor*
+- %HOME%/.kde4/share/apps/okular/docdata
+- %HOME%/.kde4/share/apps/gwenview/recentfolders
+- %HOME%/.kde4/share/apps/gwenview/recenturls
+- %HOME%/.kde/share/apps/kget/logs
+- %HOME%/.kde/share/apps/kpdf
+- %HOME%/.kde/share/apps/ktorrent/tor*
+- %HOME%/.kde/share/apps/kconf_update/log
+- %HOME%/.kde/tmp-*
+- %HOME%/.local/lib/python*/site-packages
+- %HOME%/.local/share/DisplayCAL/logs
+- %HOME%/.local/share/gnome-do
+- %HOME%/.local/share/gnome-shell/extensions
+- %HOME%/.local/share/gnome-software
+- %HOME%/.local/share/gpaste
+- %HOME%/.local/share/gvfs-metadata
+- %HOME%/.local/share/icons
+- %HOME%/.local/share/linphone
+- %HOME%/.local/share/parcellite
+- %HOME%/.local/share/shotwell/data
+- %HOME%/.local/share/tracker/data
+- %HOME%/.local/share/zeitgeist
+- %HOME%/.macromedia/Flash_Player
+- %HOME%/.mcop/trader-cache
+- %HOME%/.mozilla/*/Crash Reports
+- %HOME%/.mozilla/*/extensions
+- %HOME%/.mozilla/Crash*
+- %HOME%/.mozilla/firefox/*/bookmarkbackups
+- %HOME%/.mozilla/firefox/*/crashes
+- %HOME%/.mozilla/firefox/*/datareporting
+- %HOME%/.mozilla/firefox/*/saved-telemetry-pings
+- %HOME%/.mozilla/firefox/*/extensions
+- %HOME%/.mozilla/firefox/*/storage
+- %HOME%/.mozilla/firefox/*/webapps
+- %HOME%/.mozilla/firefox/*/webappsstore.*
+- %HOME%/.mozilla-thunderbird/*/extensions
+- %HOME%/.mozilla-thunderbird/*/saved-telemetry-pings
+- %HOME%/.mozilla-thunderbird/Crash*
+- %HOME%/.mythtv/themecache
+- %HOME%/.npm
+- %HOME%/.ssh/agent-*q
+- %HOME%/.texlive*/*/extensions
+- %HOME%/.texlive*/texmf-var
+- %HOME%/.webex
+- %HOME%/.xdg_menu_cache
+- %HOME%/.thunderbird/*/extensions
+- %HOME%/.thunderbird/*/saved-telemetry-pings
+- %HOME%/.thunderbird/Crash*
+- %HOME%/.pulse
+- %HOME%/.purple/logs
+- %HOME%/.xauth*
+- %HOME%/.Private
+- %HOME%/.texmf-var
+- %HOME%/.**.scantemp.pnm
+- %HOME%/.**.previewtemp.pnm
+- %HOME%/.var/app
+- %HOME%/.wine/drive_c
+- %HOME%/*/.wine/drive_c
+- ignorecase:/**/cache
+- ignorecase:/**/trash
+- ignorecase:/**/thumbnails
+- ignorecase:/**/.cache
+- ignorecase:/**/.trash
+- ignorecase:/**/.thumbnails
+- %HOME%/Dropbox
+- %HOME%/**/GPUCache
+- %HOME%/gtk-gnutella-downloads
+- /home/*/rpmbuild
+- /var/log/cups
+- /var/log/gdm*.[1-9]
+- /var/log/journal
+- /var/log/*20[0-9][0-9][0-9][0-9][0-9][0-9]
+- /var/log/*20[0-9][0-9][0-9][0-9][0-9][0-9].gz
+- /var/log/*20[0-9][0-9][0-9][0-9][0-9][0-9].bz2
+- /var/log/*20[0-9][0-9][0-9][0-9][0-9][0-9].xz
+- /var/log/**/*20[0-9][0-9][0-9][0-9][0-9][0-9]
+- /var/log/**/*20[0-9][0-9][0-9][0-9][0-9][0-9].gz
+- /var/log/**/*20[0-9][0-9][0-9][0-9][0-9][0-9].bz2
+- /var/log/**/*20[0-9][0-9][0-9][0-9][0-9][0-9].xz
+- /var/log/*.[0-9]
+- /var/log/*.[0-9].gz
+- /var/log/upstart/*.[0-9]
+- /var/log/upstart/*.[0-9].gz
+- /var/log/messages-*.bz2
+- /var/log/NetworkManager-*.bz2
+- /var/log/ntpstats
+- /var/log/peerstats
+- /var/log/updateTestcase*
+- /var/log/zypper.log-*.bz2
+- /NoBackup
+- /**/NoBackup
+- /**/*.iso
+- /**/*.a
+- /**/*.o
+- /**/*~
+- /**/.gvfs
+- /**/.#*
+- /**/#*
+- /**/*.pyc
++ /usr/local
++ /var/mail
++ /var/log
++ /var/spool/cron
++ /var/spool/anacron
++ /etc
++ /root
++ /home
+EOF
+
+    if [ -f $CONF/.backup.include.late.${BACK_NAME} ]; then
+	subst_home <$CONF/.backup.include.late.${BACK_NAME}
+    elif [ -f $CONF/.backup.include.late ]; then
+	subst_home <$CONF/.backup.include.late
+    fi
+    echo '- /*'
+}
+
+rm -f "$TMPDIR/include.txt"
+includelist | sed 's,^\([-+] \)/,\1'"$BACK_SRC"',' >"$TMPDIR/include.txt"
+[[ $BACK_DEBUG -eq 0 ]] || cat "$TMPDIR/include.txt"
+
+cmd $DUPLICITY $FULL $DRY $OPTS \
+    --exclude-filelist "$TMPDIR/include.txt" \
+    --archive-dir "$CACHE" \
+    --name $BACK_NAME --encrypt-key $KEY "$BACK_SRC" "$BACKUP"
