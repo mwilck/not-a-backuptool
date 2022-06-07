@@ -336,9 +336,11 @@ includelist() {
 - %HOME%/.local/share/linphone
 - %HOME%/.local/share/lutris/runners
 - %HOME%/.local/share/lutris/runtime
+- %HOME%/.local/share/openSUSE/org.opensuse.opensuse_welcome
 - %HOME%/.local/share/parcellite
 - %HOME%/.local/share/shotwell/data
 - %HOME%/.local/share/tracker/data
+- %HOME%/.local/share/xorg/Xorg.*.log.old
 - %HOME%/.local/share/zeitgeist
 - %HOME%/.macromedia/Flash_Player
 - %HOME%/.mcop/trader-cache
@@ -361,6 +363,7 @@ includelist() {
 - %HOME%/.thunderbird/Crash*
 - %HOME%/.mythtv/themecache
 - %HOME%/.npm
+- %HOME%/.python_history-*.tmp
 - %HOME%/.ssh/agent-*q
 - %HOME%/.texlive*/*/extensions
 - %HOME%/.texlive*/texmf-var
