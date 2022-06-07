@@ -308,6 +308,7 @@ includelist() {
 - %HOME%/.emacs.d/auto-save-list
 - %HOME%/.emacs.d/elpa
 - %HOME%/.emacs.d/session.*
+- %HOME%/.emacs.d/*-cache
 - %HOME%/.fontconfig/*.cache*
 - %HOME%/.gem
 - %HOME%/.gradle
