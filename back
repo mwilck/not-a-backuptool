@@ -263,6 +263,21 @@ includelist() {
 - %HOME%/.cddb
 - %HOME%/.compiz/session
 - %HOME%/.config/Blue Jeans
++ %HOME%/.config/chromium/*/Current*
++ %HOME%/.config/chromium/*/History*
++ %HOME%/.config/chromium/*/Last*
++ %HOME%/.config/chromium/*/Extension Rules
++ %HOME%/.config/chromium/*/Extension Scripts
++ %HOME%/.config/chromium/*/Local Extension Settings
++ %HOME%/.config/chromium/*/Safe Browsing Cookies
++ %HOME%/.config/chromium/*/Preferences
++ %HOME%/.config/chromium/*/Secure Preferences
++ %HOME%/.config/chromium/*/Shortcuts
++ %HOME%/.config/chromium/*/Sync Data
++ %HOME%/.config/chromium/*/Trust Tokens
++ %HOME%/.config/chromium/*/Trusted Vault
++ %HOME%/.config/chromium/Local State
+- %HOME%/.config/chromium
 + %HOME%/.config/libreoffice/*/user/config
 - %HOME%/.config/libreoffice/*
 + %HOME%/.config/google-chrome/*/Current*
