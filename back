@@ -334,6 +334,8 @@ includelist() {
 - %HOME%/.local/share/gvfs-metadata
 - %HOME%/.local/share/icons
 - %HOME%/.local/share/linphone
+- %HOME%/.local/share/lutris/runners
+- %HOME%/.local/share/lutris/runtime
 - %HOME%/.local/share/parcellite
 - %HOME%/.local/share/shotwell/data
 - %HOME%/.local/share/tracker/data
