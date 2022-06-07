@@ -310,6 +310,7 @@ includelist() {
 - %HOME%/.emacs.d/session.*
 - %HOME%/.fontconfig/*.cache*
 - %HOME%/.gem
+- %HOME%/.gradle
 - %HOME%/.java/deployment/log
 - %HOME%/.java/deployment/tmp
 - %HOME%/.gnome2/totem-addons
