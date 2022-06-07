@@ -129,16 +129,32 @@ check_backup_host() {
     esac
 }
 
+confirm_ssh_identity() {
+    local ssh_id x
+    # CAUTION!
+    # if gpg-agent is used as ssh agent, the id must have been added
+    # to the agent store of the *owner of $GNUPGHOME* (the user calling SUDO)
+    # manually before
+    [[ $SSH_IDENTITY ]]
+    for x in "$SSH_IDENTITY" "$SSH_IDENTITY.pub"; do
+	if [[ -f $x ]]; then
+	    ssh_id=$(ssh-keygen -l -f "$x" | cut -d" " -f2)
+	    break
+	fi
+    done
+    [[ $ssh_id ]]
+    ssh-add -l | grep -q "$ssh_id" || {
+	ssh-add -q -t "$SSH_LIFE" "$SSH_IDENTITY" </dev/null
+	[[ $SSH_AUTH_SOCK = *gnupg* ]] || \
+	    CLEANUP='ssh-add -q -d "$SSH_IDENTITY";'"$CLEANUP"
+    }
+}
+
 add_ssh_id() {
     case $BACKUP in
 	*sftp*)
-	    # with GPG, ssh-add is not needed, will be done as required
-	    if [[ $SSH_AUTH_SOCK = *gnupg* ]]; then return; fi
-	    [[ $SSH_IDENTITY ]]
-	    ssh-add -l | grep -q "$SSH_IDENTITY" || {
-		ssh-add -q -t "$SSH_LIFE" "$SSH_IDENTITY" </dev/null
-		CLEANUP='ssh-add -q -d "$SSH_IDENTITY";'"$CLEANUP"
-	    };;
+	    confirm_ssh_identity
+	    ;;
     esac
 }
 
