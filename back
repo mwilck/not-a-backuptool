@@ -268,7 +268,16 @@ includelist() {
 + %HOME%/.config/google-chrome/*/Current*
 + %HOME%/.config/google-chrome/*/History*
 + %HOME%/.config/google-chrome/*/Last*
++ %HOME%/.config/google-chrome/*/Extension Rules
++ %HOME%/.config/google-chrome/*/Extension Scripts
 + %HOME%/.config/google-chrome/*/Local Extension Settings
++ %HOME%/.config/google-chrome/*/Safe Browsing Cookies
++ %HOME%/.config/google-chrome/*/Preferences
++ %HOME%/.config/google-chrome/*/Secure Preferences
++ %HOME%/.config/google-chrome/*/Shortcuts
++ %HOME%/.config/google-chrome/*/Sync Data
++ %HOME%/.config/google-chrome/*/Trust Tokens
++ %HOME%/.config/google-chrome/*/Trusted Vault
 + %HOME%/.config/google-chrome/Local State
 - %HOME%/.config/google-chrome
 + %HOME%/.config/pulse/*.conf
