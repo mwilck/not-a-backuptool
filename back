@@ -445,6 +445,7 @@ includelist() {
 - /**/.gvfs
 - /**/.#*
 - /**/#*
+- /**/*.swp
 - /**/*.pyc
 + /usr/local
 + /var/mail
