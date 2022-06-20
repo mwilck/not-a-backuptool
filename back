@@ -414,6 +414,7 @@ includelist() {
 - %HOME%/**/GPUCache
 - %HOME%/gtk-gnutella-downloads
 - /home/*/rpmbuild
+- /var/lib/clamav
 - /var/log/cups
 - /var/log/gdm*.[1-9]
 - /var/log/journal
