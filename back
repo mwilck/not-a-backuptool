@@ -77,6 +77,7 @@ fi
 : ${LOGDIR:=/var/log}
 : ${NOBACKUP:=_NOBACKUP_}
 : ${SKIP_INCLUDELIST:=}
+: "${S3_OPTS:=--s3-european-buckets --s3-use-deep-archive --s3-region-name=eu-central-1}"
 
 : ${CACHE:=/root/.cache/duplicity}
 : ${GNUPGHOME:="$CONF"/.gnupg}
@@ -168,7 +169,7 @@ case $1 in
 	FULL=full
 	INTERVAL=1
 	;;
-    list|restore)
+    list|restore|replicate)
 	ACTION=$1
 	shift
 	;;
@@ -209,6 +210,20 @@ case $ACTION in
 	cry restoring to $TRG
 	cmd $DUPLICITY restore -v${VERBOSITY} $ARGS --archive-dir "$CACHE" --name "$BACK_NAME" --encrypt-key "$KEY" "$@" "$BACKUP" "$TRG"
 	exit 0
+	;;
+    replicate)
+	[[ $S3_BUCKET ]]
+	if [[ $BACKUP_RO ]]; then
+	    BACKUP=$BACKUP_RO
+	else
+	    add_ssh_id
+	fi
+	check_backup_host
+	cry replicating to $S3_BUCKET
+	cmd $DUPLICITY replicate -v${VERBOSITY} \
+	    --archive-dir "$CACHE" --name "$BACK_NAME" \
+	    --encrypt-key "$KEY" ${S3_OPTS} "$BACKUP" "boto3+s3://${S3_BUCKET}"
+	exit $?
 	;;
 esac
 
