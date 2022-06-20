@@ -68,6 +68,7 @@ fi
 # The :://$BACK_PROFILE// syntax requires a host "$BACK_PROFILE" defined in /root/.ssh/config
 # Make sure to define Algorithms and keytypes there, too, as supported by the host
 : ${BACKUP:=pexpect+sftp://"${BACK_PROFILE}"//c/backup/"${BACK_NAME}"}
+: "${BACKUP_RO:=file:///net/nasobem.local/c/backup/$BACK_NAME}"
 : ${SSH_IDENTITY:=/root/.ssh/id_bck}
 : ${KEY:=63D76654}
 : ${INTERVAL:=$((3600*4-30))}
@@ -182,8 +183,12 @@ CLEANUP='rm -rf $TMPDIR;'"$CLEANUP"
 
 case $ACTION in
     list)
+	if [[ $BACKUP_RO ]]; then
+	    BACKUP=$BACKUP_RO
+	else
+	    add_ssh_id
+	fi
 	check_backup_host
-	add_ssh_id
 	cmd $DUPLICITY list-current-files --archive-dir "$CACHE" --name "$BACK_NAME" --encrypt-key "$KEY" "$@" "$BACKUP"
 	exit 0
 	;;
@@ -195,8 +200,12 @@ case $ACTION in
 	else
 	    ARGS=
 	fi
+	if [[ $BACKUP_RO ]]; then
+	    BACKUP=$BACKUP_RO
+	else
+	    add_ssh_id
+	fi
 	check_backup_host
-	add_ssh_id
 	cry restoring to $TRG
 	cmd $DUPLICITY restore -v${VERBOSITY} $ARGS --archive-dir "$CACHE" --name "$BACK_NAME" --encrypt-key "$KEY" "$@" "$BACKUP" "$TRG"
 	exit 0
