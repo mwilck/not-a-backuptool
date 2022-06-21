@@ -184,7 +184,7 @@ CLEANUP='rm -rf $TMPDIR;'"$CLEANUP"
 
 case $ACTION in
     list)
-	if [[ $BACKUP_RO ]]; then
+	if [[ $BACKUP_RO != no]]; then
 	    BACKUP=$BACKUP_RO
 	else
 	    add_ssh_id
@@ -201,7 +201,7 @@ case $ACTION in
 	else
 	    ARGS=
 	fi
-	if [[ $BACKUP_RO ]]; then
+	if [[ $BACKUP_RO != no]]; then
 	    BACKUP=$BACKUP_RO
 	else
 	    add_ssh_id
@@ -213,7 +213,7 @@ case $ACTION in
 	;;
     replicate)
 	[[ $S3_BUCKET ]]
-	if [[ $BACKUP_RO ]]; then
+	if [[ $BACKUP_RO != no ]]; then
 	    BACKUP=$BACKUP_RO
 	else
 	    add_ssh_id
