@@ -24,7 +24,7 @@ init_backup_repo() {
     [[ $orig && -d "$orig" ]]
     [[ $ref && -d "$ref" ]]
     [[ $clone && ! -d "$clone" ]]
-    git -C "$ref" fetch --all
+    git -C "$ref" fetch --all --no-auto-maintenance || true
     git clone --mirror --reference "$ref" "$orig" "$clone"
     [[ -d "$clone" ]]
 
@@ -33,6 +33,7 @@ init_backup_repo() {
 
     git -C "$clone" config pack.packSizeLimit "$MAXPACKSIZE"
     git -C "$clone" config repack.packKeptObjects false
+    git -C "$clone" config core.commitGraph false
     # useful for fetch and clone only
     git -C "$clone" config repack.writeBitmaps false
     # -l: don't bother about alternate objects
@@ -42,6 +43,8 @@ init_backup_repo() {
     # -n: don't update server info
     git -C "$clone" repack -a -l -f -d -n
     make_keep_files "$clone"
+    # this seems to be generated despite the config setting above
+    rm -f "$clone/objects/info/commit-graph"
 }
 
 usage() {
@@ -95,7 +98,7 @@ git_path() {
 }
 
 check_alternates() {
-    local orig=$1 ref=$2 ALT l bad=
+    local orig=$1 ref=$2 ALT l bad= lines
     ALT=$(git_path "$1" objects/info/alternates)
     case $ref in
 	/*);;
@@ -123,6 +126,12 @@ CLONE=$(git -C "$ORIG" config "remote.$BACKUP_REPO.url") || true
 if [[ $CLONE ]]; then
     [[ $# -eq 0 ]]
     echo === $0: Updating backup repo $CLONE ... >&2
+    ALT=$(cat $CLONE/objects/info/alternates)
+    if [[ $ALT ]]; then
+	ALT=${ALT%/objects}
+	ALT=${ALT%/.git}
+	git -C "$ALT" fetch --all --no-auto-maintenance || true
+    fi
     git -C "$ORIG" push "$BACKUP_REPO"
     git -C "$CLONE" repack -l -f -d -n
     make_keep_files "$CLONE"
