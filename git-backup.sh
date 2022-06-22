@@ -1,6 +1,7 @@
 #! /bin/bash
 : "${_MAXPACKSIZE:=16m}"
 : "${BACKUP_REPO:=BACKUP}"
+: "${GIT_TRACE2_REPACK:=}"
 
 err() {
     trap - ERR
@@ -51,7 +52,7 @@ init_backup_repo() {
     # -a: all
     # -d: remove old stuff
     # -n: don't update server info
-    git -C "$clone" repack -a -l -f -d -n
+    GIT_TRACE2=$GIT_TRACE2_REPACK git -C "$clone" repack -a -l -f -d -n
     make_keep_files "$clone"
     # this seems to be generated despite the config setting above
     rm -f "$clone/objects/info/commit-graph"
@@ -144,11 +145,12 @@ if [[ $CLONE ]]; then
 	git -C "$ALT" fetch --all --no-auto-maintenance || true
     fi
     git -C "$ORIG" push "$BACKUP_REPO"
-    git -C "$CLONE" repack -l -f -d -n
 
     MAXPACKSIZE=$(git -C "$CLONE" config pack.packSizeLimit)
     MAXPACKSIZE=${MAXPACKSIZE:-"$_MAXPACKSIZE"}
     MAXPAXKSIZE=$(realsize "$MAXPACKSIZE")
+
+    GIT_TRACE2=$GIT_TRACE2_REPACK git -C "$CLONE" repack -l -f -d -n
     make_keep_files "$CLONE"
 else
     [[ $# -eq 2 ]]
