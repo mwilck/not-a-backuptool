@@ -50,6 +50,10 @@ init_backup_repo() {
 
     # useful for fetch and clone only
     git -C "$clone" config repack.writeBitmaps false
+
+    # Just in case - don't want to keep anything here
+    rm -fv "$clone/objects/pack/*.keep"
+
     # -l: don't bother about alternate objects
     # -f: recompute deltas
     # -a: all
@@ -58,7 +62,7 @@ init_backup_repo() {
     GIT_TRACE2=$GIT_TRACE2_REPACK git -C "$clone" repack -a -l -f -d -n
     make_keep_files "$clone"
     # this seems to be generated despite the config setting above
-    rm -f "$clone/objects/info/commit-graph"
+    rm -fv "$clone/objects/info/commit-graph"
 }
 
 usage() {
@@ -140,7 +144,7 @@ check_alternates() {
 CLONE=$(git -C "$ORIG" config "remote.$BACKUP_REPO.url") || true
 if [[ $CLONE ]]; then
     [[ $# -eq 0 ]]
-    echo === $0: Updating backup repo $CLONE ... >&2
+    echo "=== $0: Updating backup repo $CLONE ..." >&2
     ALT=$(cat $CLONE/objects/info/alternates)
     if [[ $ALT ]]; then
 	ALT=${ALT%/objects}
@@ -157,7 +161,7 @@ if [[ $CLONE ]]; then
     make_keep_files "$CLONE"
 else
     [[ $# -eq 2 ]]
-    echo === $0: Creating backup repo $1 ... >&2
+    echo "=== $0: Creating backup repo $1 ..." >&2
     eval "check_alternates \"$ORIG\" $2"
     eval "init_backup_repo \"$ORIG\" $1 $2"
 fi
