@@ -44,19 +44,39 @@ init_backup_repo() {
     [[ $orig && -d "$orig" ]]
     [[ $ref && -d "$ref" ]]
     [[ $clone && ! -d "$clone" ]]
-    echo "-- $0: updating $ALT ..." >&2
-    git -C "$ref" fetch --all --no-auto-maintenance || true
-    echo "-- $0: cloning $orig to $clone using reference $ref ..." >&2
-    git clone --mirror --reference "$ref" "$orig" "$clone"
+    echo "-- $0: updating $ref ..." >&2
+    git -C "$ref" fetch --all --no-auto-maintenance
+
+    echo "-- $0: configuring backup repo $clone for $orig ..." >&2
+    mkdir -p "$clone"
     [[ -d "$clone" ]]
+    git -C "$clone" init --bare -q
+    echo "$(git_path "$ref" objects)" >"$clone"/objects/info/alternates
 
     git -C "$orig" remote add --mirror=push "$BACKUP_REPO" "$clone"
     git -C "$orig" config "remote.$BACKUP_REPO.skipFetchAll" true
+    git -C "$orig" config "remote.$BACKUP_REPO.mirror" true
+
+    # Map local hierachy of original repo to backup/$ORIG_REPO
+    git -C "$orig" config "remote.$BACKUP_REPO.push" "+refs/*:refs/backup/$ORIG_REPO/*"
+    git -C "$orig" config "remote.$BACKUP_REPO.fetch" "refs/backup/$ORIG_REPO/*:refs/*"
+
+    git -C "$clone" remote add "$ORIG_REPO" "$orig"
+    git -C "$clone" config "remote.$ORIG_REPO.fetch" "+refs/*:refs/backup/$ORIG_REPO/*"
+    git -C "$clone" config "remote.$ORIG_REPO.push" "refs/backup/$ORIG_REPO/*:refs/*"
 
     # Don't generate stuff we don't need in backup
     git -C "$clone" config core.commitGraph false
     git -C "$clone" config core.multiPackIndex false
     git -C "$clone" config fetch.writeCommitGraph false
+
+    git -C "$clone" config receive.autogc false
+    git -C "$clone" config receive.denyDeletes false
+    git -C "$clone" config receive.denyDeleteCurrent false
+    git -C "$clone" config receive.denyCurrentBranch false
+    git -C "$clone" config receive.denyNonFastForwards false
+    git -C "$clone" config receive.updateServerInfo false
+    git -C "$clone" config receive.shallowUpdate true
 
     git -C "$clone" config pack.packSizeLimit "$MAXPACKSIZE"
     # don't repack objects in kept packs
@@ -70,8 +90,12 @@ init_backup_repo() {
     # no bitmaps - useful for fetch and clone only
     git -C "$clone" config repack.writeBitmaps false
 
-    # Just in case - don't want to keep anything at this time
-    rm -fv "$clone/objects/pack/*.keep"
+    echo "-- $0: pushing  ..." >&2
+    git -C "$orig" push "$BACKUP_REPO"
+
+    # In the future, store objects unpacked, we'll repack later
+    # doing this before initial push will slow down stuff too much
+    git -C "$clone" config receive.unpackLimit 1000000
 
     # -l: don't bother about alternate objects
     # -f: recompute deltas
