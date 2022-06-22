@@ -13,10 +13,15 @@ trap err ERR
 set -E
 
 make_keep_files() {
-    local clone=$1
+    local clone=$1 sz
 
     for x in "$clone"/objects/pack/*.pack; do
-	touch "${x%.pack}.keep"
+	sz=$(stat -c %s "$x")
+	if [[ $sz -ge $((9 * MAXPACKSIZE / 10)) ]]; then
+	    touch "${x%.pack}.keep"
+	else
+	    rm -fv "${x%.pack}.keep"
+	fi
     done
 }
 
@@ -186,8 +191,8 @@ check_alternates() {
 
 CLONE=$(git -C "$ORIG" config "remote.$BACKUP_REPO.url") || true
 if [[ $CLONE ]]; then
-    [[ $# -eq 0 ]]
     echo "=== $0: Updating backup repo $CLONE ..." >&2
+    [[ $# -eq 0 ]]
     ALT=$(cat $CLONE/objects/info/alternates)
     if [[ $ALT ]]; then
 	ALT=${ALT%/objects}
@@ -206,11 +211,13 @@ if [[ $CLONE ]]; then
     GIT_TRACE2=$GIT_TRACE2_REPACK git -C "$CLONE" repack -l -f -d -n
     make_keep_files "$CLONE"
 else
+    echo "=== $0: Creating backup repo $1 ..." >&2
     [[ $# -eq 2 ]]
     eval "CLONE=$1"
     eval "REF=$2"
-    echo "=== $0: Creating backup repo $1 ..." >&2
+    [[ $REF == /* ]] || REF=$PWD/$REF
+    [[ $CLONE == /* ]] || CLONE=$PWD/$CLONE
     check_alternates "$ORIG" "$REF"
     init_backup_repo "$ORIG" "$CLONE" "$REF"
 fi
-echo "=== %0: Done." >&2
+echo "=== $0: Done." >&2
