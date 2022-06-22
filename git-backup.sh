@@ -167,8 +167,10 @@ if [[ $CLONE ]]; then
     make_keep_files "$CLONE"
 else
     [[ $# -eq 2 ]]
+    eval "CLONE=$1"
+    eval "REF=$2"
     echo "=== $0: Creating backup repo $1 ..." >&2
-    eval "check_alternates \"$ORIG\" $2"
-    eval "init_backup_repo \"$ORIG\" $1 $2"
+    check_alternates "$ORIG" "$REF"
+    init_backup_repo "$ORIG" "$CLONE" "$REF"
 fi
 echo "=== %0: Done." >&2
