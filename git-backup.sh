@@ -1,6 +1,7 @@
 #! /bin/bash
 : "${_MAXPACKSIZE:=16m}"
 : "${BACKUP_REPO:=BACKUP}"
+: "${ORIG_REPO:=origin}"
 : "${GIT_TRACE2_REPACK:=}"
 
 err() {
@@ -80,7 +81,8 @@ usage() {
     echo "Usage: $0 [options] orig [backup reference]"
     printf "%s/%s %s\t%s\n" \
 	   "-h" "--help" "" "print this help" \
-	   "-m" "--max-pack-size" "SIZE" "set max pack size"
+	   "-m" "--max-pack-size" "SIZE" "set max pack size" \
+	   "-n" "--name" "NAME" "set origin name in backup repo"
 }
 
 git_path() {
@@ -93,7 +95,7 @@ git_path() {
     return 1
 }
 
-set -- $(getopt -ohm: -l help -l max-pack-size: -- "$@")
+set -- $(getopt -ohm:n: -l help -l max-pack-size: -l name: -- "$@")
 while [[ $# -gt 0 ]]; do
     case $1 in
 	-h|--help)
@@ -102,6 +104,10 @@ while [[ $# -gt 0 ]]; do
 	-m|--max-pack-size)
 	    shift
 	    eval "_MAXPACKSIZE=$1"
+	    ;;
+	-n|--name)
+	    shift
+	    eval "ORIG_REPO=$1"
 	    ;;
 	--)
 	    shift
