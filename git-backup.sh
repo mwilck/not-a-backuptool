@@ -35,7 +35,9 @@ init_backup_repo() {
     [[ $orig && -d "$orig" ]]
     [[ $ref && -d "$ref" ]]
     [[ $clone && ! -d "$clone" ]]
+    echo "-- $0: updating $ALT ..." >&2
     git -C "$ref" fetch --all --no-auto-maintenance || true
+    echo "-- $0: cloning $orig to $clone using reference $ref ..." >&2
     git clone --mirror --reference "$ref" "$orig" "$clone"
     [[ -d "$clone" ]]
 
@@ -59,6 +61,7 @@ init_backup_repo() {
     # -a: all
     # -d: remove old stuff
     # -n: don't update server info
+    echo "-- $0: repacking $clone ..." >&2
     GIT_TRACE2=$GIT_TRACE2_REPACK git -C "$clone" repack -a -l -f -d -n
     make_keep_files "$clone"
     # this seems to be generated despite the config setting above
@@ -149,14 +152,17 @@ if [[ $CLONE ]]; then
     if [[ $ALT ]]; then
 	ALT=${ALT%/objects}
 	ALT=${ALT%/.git}
+	echo "-- $0: updating $ALT ..." >&2
 	git -C "$ALT" fetch --all --no-auto-maintenance || true
     fi
+    echo "-- $0: pushing to $CLONE ..." >&2
     git -C "$ORIG" push "$BACKUP_REPO"
 
     MAXPACKSIZE=$(git -C "$CLONE" config pack.packSizeLimit)
     MAXPACKSIZE=${MAXPACKSIZE:-"$_MAXPACKSIZE"}
     MAXPAXKSIZE=$(realsize "$MAXPACKSIZE")
 
+    echo "-- $0: repacking $CLONE ..." >&2
     GIT_TRACE2=$GIT_TRACE2_REPACK git -C "$CLONE" repack -l -f -d -n
     make_keep_files "$CLONE"
 else
@@ -165,3 +171,4 @@ else
     eval "check_alternates \"$ORIG\" $2"
     eval "init_backup_repo \"$ORIG\" $1 $2"
 fi
+echo "=== %0: Done." >&2
