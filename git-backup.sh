@@ -45,6 +45,9 @@ init_backup_repo() {
     git -C "$clone" config pack.packSizeLimit "$MAXPACKSIZE"
     git -C "$clone" config repack.packKeptObjects false
     git -C "$clone" config core.commitGraph false
+    git -C "$clone" config maintenance.strategy none
+    git -C "$clone" config gc.auto false
+
     # useful for fetch and clone only
     git -C "$clone" config repack.writeBitmaps false
     # -l: don't bother about alternate objects
