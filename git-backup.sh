@@ -44,16 +44,24 @@ init_backup_repo() {
     git -C "$orig" remote add --mirror=push "$BACKUP_REPO" "$clone"
     git -C "$orig" config "remote.$BACKUP_REPO.skipFetchAll" true
 
-    git -C "$clone" config pack.packSizeLimit "$MAXPACKSIZE"
-    git -C "$clone" config repack.packKeptObjects false
+    # Don't generate stuff we don't need in backup
     git -C "$clone" config core.commitGraph false
+    git -C "$clone" config core.multiPackIndex false
+    git -C "$clone" config fetch.writeCommitGraph false
+
+    git -C "$clone" config pack.packSizeLimit "$MAXPACKSIZE"
+    # don't repack objects in kept packs
+    git -C "$clone" config repack.packKeptObjects false
+
+    # No automatic maintenance
     git -C "$clone" config maintenance.strategy none
     git -C "$clone" config gc.auto false
+    git -C "$clone" config gc.autoPackLimit 0
 
-    # useful for fetch and clone only
+    # no bitmaps - useful for fetch and clone only
     git -C "$clone" config repack.writeBitmaps false
 
-    # Just in case - don't want to keep anything here
+    # Just in case - don't want to keep anything at this time
     rm -fv "$clone/objects/pack/*.keep"
 
     # -l: don't bother about alternate objects
