@@ -30,6 +30,14 @@ realsize() {
     printf "%d\n" "$size"
 }
 
+git_path() {
+    local dir=$1 file=$2 d
+    for d in "$dir/.git" "$dir"; do
+	[[ -e "$d/$file" ]] || continue
+	echo "$d/$file"
+    done
+}
+
 init_backup_repo() {
     local x orig=$1 clone=$2 ref=$3
 
@@ -87,12 +95,14 @@ usage() {
 
 git_path() {
     local dir=$1 file=$2 d
+
+    [[ -d "$dir" ]] || return
     for d in "$dir/.git" "$dir"; do
-	[[ ! -e "$d/$file" ]] || continue
+	[[ -e "$d/$file" ]] || continue
 	echo "$d/$file"
-	return 0
+	return
     done
-    return 1
+    return
 }
 
 set -- $(getopt -ohm:n: -l help -l max-pack-size: -l name: -- "$@")
@@ -124,14 +134,6 @@ eval "ORIG=$1"
 shift
 [[ $ORIG && -d "$ORIG" ]]
 MAXPACKSIZE=$(realsize "$_MAXPACKSIZE")
-
-git_path() {
-    local dir=$1 file=$2 d
-    for d in "$dir/.git" "$dir"; do
-	[[ -e "$d/$file" ]] || continue
-	echo "$d/$file"
-    done
-}
 
 check_alternates() {
     local orig=$1 ref=$2 ALT l bad= lines
