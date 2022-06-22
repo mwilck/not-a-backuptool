@@ -1,5 +1,5 @@
 #! /bin/bash
-: "${MAXPACKSIZE:=128m}"
+: "${_MAXPACKSIZE:=16m}"
 : "${BACKUP_REPO:=BACKUP}"
 
 err() {
@@ -16,6 +16,16 @@ make_keep_files() {
     for x in "$clone"/objects/pack/*.pack; do
 	touch "${x%.pack}.keep"
     done
+}
+
+realsize() {
+    size=$1
+    case $size in
+	*g) size=$((${size%g} * 1024 * 1024 * 1024));;
+	*m) size=$((${size%m} * 1024 * 1024));;
+	*k) size=$((${size%k} * 1024));;
+    esac
+    printf "%d\n" "$size"
 }
 
 init_backup_repo() {
@@ -72,7 +82,7 @@ while [[ $# -gt 0 ]]; do
 	    exit 0;;
 	-m|--max-pack-size)
 	    shift
-	    eval "MAXPACKSIZE=$1"
+	    eval "_MAXPACKSIZE=$1"
 	    ;;
 	--)
 	    shift
@@ -88,6 +98,7 @@ done
 eval "ORIG=$1"
 shift
 [[ $ORIG && -d "$ORIG" ]]
+MAXPACKSIZE=$(realsize "$_MAXPACKSIZE")
 
 git_path() {
     local dir=$1 file=$2 d
@@ -134,6 +145,10 @@ if [[ $CLONE ]]; then
     fi
     git -C "$ORIG" push "$BACKUP_REPO"
     git -C "$CLONE" repack -l -f -d -n
+
+    MAXPACKSIZE=$(git -C "$CLONE" config pack.packSizeLimit)
+    MAXPACKSIZE=${MAXPACKSIZE:-"$_MAXPACKSIZE"}
+    MAXPAXKSIZE=$(realsize "$MAXPACKSIZE")
     make_keep_files "$CLONE"
 else
     [[ $# -eq 2 ]]
