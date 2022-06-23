@@ -1,5 +1,5 @@
 #! /bin/bash
-: "${_MAXPACKSIZE:=16m}"
+: "${_MAXPACKSIZE:=2m}"
 : "${BACKUP_REPO:=BACKUP}"
 : "${ORIG_REPO:=origin}"
 : "${GIT_TRACE2_REPACK:=}"
