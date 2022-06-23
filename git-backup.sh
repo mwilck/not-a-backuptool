@@ -3,6 +3,7 @@
 : "${BACKUP_REPO:=BACKUP}"
 : "${ORIG_REPO:=origin}"
 : "${GIT_TRACE2_REPACK:=}"
+: "${UPSTREAM:=origin}"
 
 err() {
     trap - ERR
@@ -122,11 +123,13 @@ init_backup_repo() {
 }
 
 usage() {
-    echo "Usage: $0 [options] orig [backup reference]"
+    printf "Usage: %s [options] orig [backup]\nOptions:\n" "$0"
     printf "%s/%s %s\t%s\n" \
 	   "-h" "--help" "" "print this help" \
-	   "-m" "--max-pack-size" "SIZE" "set max pack size" \
-	   "-n" "--name" "NAME" "set origin name in backup repo"
+	   "-m" "--max-pack-size" SIZE "set max pack size" \
+	   "-n" "--name" NAME "set origin name in backup repo" \
+	   "-r" "--reference" PATH "set reference repository" \
+	   "-u" "--upstream" REMOTE "upstream remote for reference repo, default 'origin'"
 }
 
 git_path() {
@@ -141,7 +144,12 @@ git_path() {
     return
 }
 
-set -- $(getopt -ohm:n: -l help -l max-pack-size: -l name: -- "$@")
+REF=
+set -- $(getopt -ohm:n:r:u: \
+		-l help -l max-pack-size: -l name: \
+		-l reference: -l upstream: \
+		-- "$@")
+
 while [[ $# -gt 0 ]]; do
     case $1 in
 	-h|--help)
@@ -154,6 +162,14 @@ while [[ $# -gt 0 ]]; do
 	-n|--name)
 	    shift
 	    eval "ORIG_REPO=$1"
+	    ;;
+	-r|--reference)
+	    shift
+	    eval "REF=$1"
+	    ;;
+	-u|--upstream)
+	    shift
+	    eval "UPSTREAM=$1"
 	    ;;
 	--)
 	    shift
@@ -193,6 +209,30 @@ check_alternates() {
     fi
 }
 
+create_reference_repo() {
+    local repo=$1 origin=$2
+
+    echo "-- $0: creating reference repo $repo for $origin ..." >&2
+    git clone --mirror "$origin" "$repo"
+
+    git -C "$repo" config protocol.version 2
+    git -C "$repo" config gc.auto false
+    # Don't prune unreachable objects, they may still be in use in original repo
+    git -C "$repo" config gc.pruneExpire never
+    git -C "$repo" config gc.worktreePruneExpire never
+    # this prunes just remote-trackin refs (no objects), should be safe
+    git -C "$repo" config fetch.prune true
+    git -C "$repo" config fetch.pruneTags true
+    # fetch objects in packs
+    git -C "$repo" config fetch.unpackLimit 1
+    # commit graph is taken care of by git maintenance
+    git -C "$repo" config fetch.writeCommitGraph false
+    # speed up fetches
+    git -C "$repo" maintenance start || true
+    git -C "$repo" config maintenance.auto false
+}
+
+
 CLONE=$(git -C "$ORIG" config "remote.$BACKUP_REPO.url") || true
 if [[ $CLONE ]]; then
     echo "=== $0: Updating backup repo $CLONE ..." >&2
@@ -216,10 +256,23 @@ if [[ $CLONE ]]; then
     make_keep_files "$CLONE"
 else
     echo "=== $0: Creating backup repo $1 ..." >&2
-    [[ $# -eq 2 || $# -eq 1 ]]
+    [[ $# -eq 1 ]]
     eval "CLONE=$1"
-    eval "REF=$2"
-    [[ ! $REF || $REF == /* ]] || REF=$PWD/$REF
+
+    if [[ $REF ]]; then
+	[[ $REF == /* ]] || REF=$PWD/$REF
+	if [[ ! -d "$REF" ]]; then
+	    URL=$(git -C "$ORIG" config remote."$UPSTREAM".url)
+	    create_reference_repo "$REF" "$URL"
+	    INFO=$(git_path $ORIG objects/info)
+	    [[ -f "$INFO"/alternates ]] || {
+		echo "-- $0: configuring $REF as alternate repo in $ORIG" >&2
+		echo "$REF/objects" >"$INFO"/alternates
+		git -C "$ORIG" gc --aggressive
+	    }
+	fi
+    fi
+
     [[ $CLONE == /* ]] || CLONE=$PWD/$CLONE
     check_alternates "$ORIG" "$REF"
     init_backup_repo "$ORIG" "$CLONE" "$REF"
