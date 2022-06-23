@@ -47,16 +47,23 @@ init_backup_repo() {
     local x orig=$1 clone=$2 ref=$3
 
     [[ $orig && -d "$orig" ]]
-    [[ $ref && -d "$ref" ]]
     [[ $clone && ! -d "$clone" ]]
-    echo "-- $0: updating $ref ..." >&2
-    git -C "$ref" fetch --all --no-auto-maintenance
 
-    echo "-- $0: configuring backup repo $clone for $orig ..." >&2
     mkdir -p "$clone"
     [[ -d "$clone" ]]
     git -C "$clone" init --bare -q
-    echo "$(git_path "$ref" objects)" >"$clone"/objects/info/alternates
+
+    if [[ $ref ]]; then
+	[[ -d "$ref" ]]
+	local p=$(git_path "$ref" objects)
+
+	[[ $p ]]
+	echo "$p" >"$clone"/objects/info/alternates
+	echo "-- $0: updating $ref ..." >&2
+	git -C "$ref" fetch --all --no-auto-maintenance
+    fi
+
+    echo "-- $0: configuring backup repo $clone for $orig ..." >&2
 
     git -C "$orig" remote add --mirror=push "$BACKUP_REPO" "$clone"
     git -C "$orig" config "remote.$BACKUP_REPO.skipFetchAll" true
@@ -167,13 +174,10 @@ MAXPACKSIZE=$(realsize "$_MAXPACKSIZE")
 check_alternates() {
     local orig=$1 ref=$2 ALT l bad= lines
     ALT=$(git_path "$1" objects/info/alternates)
-    case $ref in
-	/*);;
-	*) ref=$PWD/$ref;;
-    esac
     if [[ $ALT ]]; then
 	mapfile -t lines <"$ALT"
 	for l in "${lines[@]}"; do
+	    [[ $l ]] || continue
 	    l=${l%/objects}
 	    l=${l%/.git}
 	    case $l in
@@ -212,10 +216,10 @@ if [[ $CLONE ]]; then
     make_keep_files "$CLONE"
 else
     echo "=== $0: Creating backup repo $1 ..." >&2
-    [[ $# -eq 2 ]]
+    [[ $# -eq 2 || $# -eq 1 ]]
     eval "CLONE=$1"
     eval "REF=$2"
-    [[ $REF == /* ]] || REF=$PWD/$REF
+    [[ ! $REF || $REF == /* ]] || REF=$PWD/$REF
     [[ $CLONE == /* ]] || CLONE=$PWD/$CLONE
     check_alternates "$ORIG" "$REF"
     init_backup_repo "$ORIG" "$CLONE" "$REF"
