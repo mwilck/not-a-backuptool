@@ -5,43 +5,46 @@
 : "${GIT_TRACE2_REPACK:=}"
 : "${UPSTREAM:=origin}"
 
-err() {
-    trap - ERR
-    echo "error in $BASH_COMMAND" >&2
-    exit 1
-}
+MYDIR=$(dirname "$0")
+. "$MYDIR"/git-backup-functions.sh
+ME=$(basename "$0")
+
 trap err ERR
 set -E
 
-make_keep_files() {
-    local clone=$1 sz
+copy_reflog() {
+    local orig=$1 repo=$2 clone refdir head tree
 
-    for x in "$clone"/objects/pack/*.pack; do
-	sz=$(stat -c %s "$x")
-	if [[ $sz -ge $((9 * MAXPACKSIZE / 10)) ]]; then
-	    touch "${x%.pack}.keep"
-	else
-	    rm -fv "${x%.pack}.keep"
+    head=$(git_path "$orig" logs/HEAD)
+    clone=$(git -C "$orig" config "remote.$repo.url")
+    refdir=$(git -C "$orig" config "remote.$repo.push" | \
+		 sed -E 's,.*.:refs/(.*)/\*,\1,')
+
+    [[ $clone && $refdir ]] || return 0
+
+    mkdir -p "$clone/logs/$refdir"
+    if [[ $head ]]; then
+	rsync -c "$head" "$clone/logs/$refdir"
+    fi
+
+    local wt=$(git_path "$orig" worktrees)
+    [[ $wt ]] || return 0
+
+    for tree in "$wt"/*; do
+	tree=$(basename "$tree")
+	if [[ -f "$wt/$tree/logs/HEAD" ]]; then
+	    mkdir -p "$clone/logs/$refdir/$tree"
+	    rsync -c "$wt/$tree/logs/HEAD" "$clone/logs/$refdir/$tree"
 	fi
     done
 }
 
-realsize() {
-    size=$1
-    case $size in
-	*g) size=$((${size%g} * 1024 * 1024 * 1024));;
-	*m) size=$((${size%m} * 1024 * 1024));;
-	*k) size=$((${size%k} * 1024));;
-    esac
-    printf "%d\n" "$size"
-}
+push_to_backup( ) {
+    local orig=$1 repo=$2
 
-git_path() {
-    local dir=$1 file=$2 d
-    for d in "$dir/.git" "$dir"; do
-	[[ -e "$d/$file" ]] || continue
-	echo "$d/$file"
-    done
+    echo "-- $ME: pushing to $repo in $orig ..." >&2
+    git -C "$orig" push "$repo"
+    copy_reflog "$orig" "$repo"
 }
 
 init_backup_repo() {
@@ -60,11 +63,11 @@ init_backup_repo() {
 
 	[[ $p ]]
 	echo "$p" >"$clone"/objects/info/alternates
-	echo "-- $0: updating $ref ..." >&2
+	echo "-- $ME: updating $ref ..." >&2
 	git -C "$ref" fetch --all --no-auto-maintenance
     fi
 
-    echo "-- $0: configuring backup repo $clone for $orig ..." >&2
+    echo "-- $ME: configuring backup repo $clone for $orig ..." >&2
 
     git -C "$orig" remote add --mirror=push "$BACKUP_REPO" "$clone"
     git -C "$orig" config "remote.$BACKUP_REPO.skipFetchAll" true
@@ -97,14 +100,13 @@ init_backup_repo() {
 
     # No automatic maintenance
     git -C "$clone" config maintenance.strategy none
-    git -C "$clone" config gc.auto false
+    git -C "$clone" config gc.auto 0
     git -C "$clone" config gc.autoPackLimit 0
 
     # no bitmaps - useful for fetch and clone only
     git -C "$clone" config repack.writeBitmaps false
 
-    echo "-- $0: pushing  ..." >&2
-    git -C "$orig" push "$BACKUP_REPO"
+    push_to_backup "$orig" "$BACKUP_REPO"
 
     # In the future, store objects unpacked, we'll repack later
     # doing this before initial push will slow down stuff too much
@@ -115,33 +117,20 @@ init_backup_repo() {
     # -a: all
     # -d: remove old stuff
     # -n: don't update server info
-    echo "-- $0: repacking $clone ..." >&2
+    echo "-- $ME: repacking $clone ..." >&2
     GIT_TRACE2=$GIT_TRACE2_REPACK git -C "$clone" repack -a -l -f -d -n
-    make_keep_files "$clone"
-    # this seems to be generated despite the config setting above
-    rm -fv "$clone/objects/info/commit-graph"
+    make_keep_files "$clone" "$MAXPACKSIZE"
+    create_remotes "$clone"
 }
 
 usage() {
-    printf "Usage: %s [options] orig [backup]\nOptions:\n" "$0"
+    printf "Usage: %s [options] orig [backup]\nOptions:\n" "$ME"
     printf "%s/%s %s\t%s\n" \
 	   "-h" "--help" "" "print this help" \
 	   "-m" "--max-pack-size" SIZE "set max pack size" \
 	   "-n" "--name" NAME "set origin name in backup repo" \
 	   "-r" "--reference" PATH "set reference repository" \
 	   "-u" "--upstream" REMOTE "upstream remote for reference repo, default 'origin'"
-}
-
-git_path() {
-    local dir=$1 file=$2 d
-
-    [[ -d "$dir" ]] || return
-    for d in "$dir/.git" "$dir"; do
-	[[ -e "$d/$file" ]] || continue
-	echo "$d/$file"
-	return
-    done
-    return
 }
 
 REF=
@@ -187,42 +176,20 @@ shift
 [[ $ORIG && -d "$ORIG" ]]
 MAXPACKSIZE=$(realsize "$_MAXPACKSIZE")
 
-check_alternates() {
-    local orig=$1 ref=$2 ALT l bad= lines
-    ALT=$(git_path "$1" objects/info/alternates)
-    if [[ $ALT ]]; then
-	mapfile -t lines <"$ALT"
-	for l in "${lines[@]}"; do
-	    [[ $l ]] || continue
-	    l=${l%/objects}
-	    l=${l%/.git}
-	    case $l in
-		$ref) continue;;
-		*) bad=yes
-		   break;;
-	    esac
-	done
-	if [[ $bad ]]; then
-	    echo "$0: $ORIG uses alternates: $l. Exiting!" >&2
-	    exit 1
-	fi
-    fi
-}
-
 create_reference_repo() {
     local repo=$1 origin=$2
 
-    echo "-- $0: creating reference repo $repo for $origin ..." >&2
+    echo "-- $ME: creating reference repo $repo for $origin ..." >&2
     git clone --mirror "$origin" "$repo"
 
     git -C "$repo" config protocol.version 2
-    git -C "$repo" config gc.auto false
+    git -C "$repo" config gc.auto 0
     # Don't prune unreachable objects, they may still be in use in original repo
     git -C "$repo" config gc.pruneExpire never
     git -C "$repo" config gc.worktreePruneExpire never
-    # this prunes just remote-trackin refs (no objects), should be safe
+    # this prunes just remote-tracking refs (no objects), should be safe
     git -C "$repo" config fetch.prune true
-    git -C "$repo" config fetch.pruneTags true
+    git -C "$repo" config fetch.pruneTags false
     # fetch objects in packs
     git -C "$repo" config fetch.unpackLimit 1
     # commit graph is taken care of by git maintenance
@@ -235,27 +202,23 @@ create_reference_repo() {
 
 CLONE=$(git -C "$ORIG" config "remote.$BACKUP_REPO.url") || true
 if [[ $CLONE ]]; then
-    echo "=== $0: Updating backup repo $CLONE ..." >&2
+    echo "=== $ME: Updating backup repo $CLONE ..." >&2
     [[ $# -eq 0 ]]
-    ALT=$(cat $CLONE/objects/info/alternates)
+    ALT=$(cat $CLONE/objects/info/alternates) || true
     if [[ $ALT ]]; then
 	ALT=${ALT%/objects}
 	ALT=${ALT%/.git}
-	echo "-- $0: updating $ALT ..." >&2
+	echo "-- $ME: updating $ALT ..." >&2
 	git -C "$ALT" fetch --all --no-auto-maintenance || true
     fi
-    echo "-- $0: pushing to $CLONE ..." >&2
-    git -C "$ORIG" push "$BACKUP_REPO"
 
-    MAXPACKSIZE=$(git -C "$CLONE" config pack.packSizeLimit)
-    MAXPACKSIZE=${MAXPACKSIZE:-"$_MAXPACKSIZE"}
-    MAXPAXKSIZE=$(realsize "$MAXPACKSIZE")
+    push_to_backup "$ORIG" "$BACKUP_REPO"
 
-    echo "-- $0: repacking $CLONE ..." >&2
+    echo "-- $ME: repacking $CLONE ..." >&2
     GIT_TRACE2=$GIT_TRACE2_REPACK git -C "$CLONE" repack -l -f -d -n
-    make_keep_files "$CLONE"
+    make_keep_files "$CLONE" "$MAXPACKSIZE"
 else
-    echo "=== $0: Creating backup repo $1 ..." >&2
+    echo "=== $ME: Creating backup repo $1 ..." >&2
     [[ $# -eq 1 ]]
     eval "CLONE=$1"
 
@@ -266,7 +229,7 @@ else
 	    create_reference_repo "$REF" "$URL"
 	    INFO=$(git_path $ORIG objects/info)
 	    [[ -f "$INFO"/alternates ]] || {
-		echo "-- $0: configuring $REF as alternate repo in $ORIG" >&2
+		echo "-- $ME: configuring $REF as alternate repo in $ORIG and doing gc" >&2
 		echo "$REF/objects" >"$INFO"/alternates
 		git -C "$ORIG" gc --aggressive
 	    }
@@ -277,4 +240,4 @@ else
     check_alternates "$ORIG" "$REF"
     init_backup_repo "$ORIG" "$CLONE" "$REF"
 fi
-echo "=== $0: Done." >&2
+echo "=== $ME: Done." >&2
