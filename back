@@ -296,6 +296,9 @@ includelist() {
 - /proc
 - /sys
 - /dev
+- /etc/bootsplash
+- /etc/brltty/*
+- /etc/libibverbs.d
 - /tmp
 - /run
 - /var/run
@@ -303,6 +306,7 @@ includelist() {
 - /home/.ecryptfs
 - %HOME%/.DCOPserver_*
 - %HOME%/.adobe
+- %HOME%/.ansible/collections
 - %HOME%/.beagle
 - %HOME%/.aMule
 - %HOME%/.cddb
@@ -404,6 +408,7 @@ includelist() {
 - %HOME%/.mozilla-thunderbird/*/extensions
 - %HOME%/.mozilla-thunderbird/*/saved-telemetry-pings
 - %HOME%/.mozilla-thunderbird/Crash*
+- %HOME%/.nv/GLCache
 - %HOME%/.thunderbird/*/extensions
 - %HOME%/.thunderbird/*/saved-telemetry-pings
 - %HOME%/.thunderbird/Crash*
