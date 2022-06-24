@@ -212,6 +212,8 @@ if [[ $CLONE ]]; then
 	git -C "$ALT" fetch --all --no-auto-maintenance || true
     fi
 
+    echo "-- $ME: updating $ORIG ..." >&2
+    git -C "$ORIG" fetch --all --no-auto-maintenance || true
     push_to_backup "$ORIG" "$BACKUP_REPO"
 
     echo "-- $ME: repacking $CLONE ..." >&2
