@@ -23,7 +23,7 @@ is_valid_upstream() {
     return 0
 }
 
-for DIR in "$BASE_DIR"/*; do
+for DIR in "$@"; do
     if [[ $DIR == *.git ]] || ! is_git_dir "$DIR"; then
 	echo "+++ $ME: skipping $DIR" >&2
 	continue
