@@ -174,6 +174,7 @@ done
 eval "ORIG=$1"
 shift
 [[ $ORIG && -d "$ORIG" ]]
+[[ "$ORIG" == /* ]] || ORIG=$PWD/$ORIG
 MAXPACKSIZE=$(realsize "$_MAXPACKSIZE")
 
 create_reference_repo() {
