@@ -47,39 +47,8 @@ push_to_backup( ) {
     copy_reflog "$orig" "$repo"
 }
 
-init_backup_repo() {
-    local x orig=$1 clone=$2 ref=$3
-
-    [[ $orig && -d "$orig" ]]
-    [[ $clone && ! -d "$clone" ]]
-
-    mkdir -p "$clone"
-    [[ -d "$clone" ]]
-    git -C "$clone" init --bare -q
-
-    if [[ $ref ]]; then
-	[[ -d "$ref" ]]
-	local p=$(git_path "$ref" objects)
-
-	[[ $p ]]
-	echo "$p" >"$clone"/objects/info/alternates
-	echo "-- $ME: updating $ref ..." >&2
-	git -C "$ref" fetch --all --no-auto-maintenance
-    fi
-
-    echo "-- $ME: configuring backup repo $clone for $orig ..." >&2
-
-    git -C "$orig" remote add --mirror=push "$BACKUP_REPO" "$clone"
-    git -C "$orig" config "remote.$BACKUP_REPO.skipFetchAll" true
-    git -C "$orig" config "remote.$BACKUP_REPO.mirror" true
-
-    # Map local hierachy of original repo to backup/$ORIG_REPO
-    git -C "$orig" config "remote.$BACKUP_REPO.push" "+refs/*:refs/backup/$ORIG_REPO/*"
-    git -C "$orig" config "remote.$BACKUP_REPO.fetch" "refs/backup/$ORIG_REPO/*:refs/*"
-
-    git -C "$clone" remote add "$ORIG_REPO" "$orig"
-    git -C "$clone" config "remote.$ORIG_REPO.fetch" "+refs/*:refs/backup/$ORIG_REPO/*"
-    git -C "$clone" config "remote.$ORIG_REPO.push" "refs/backup/$ORIG_REPO/*:refs/*"
+configure_backup_repo() {
+    local clone=$1
 
     # Don't generate stuff we don't need in backup
     git -C "$clone" config core.commitGraph false
@@ -105,6 +74,51 @@ init_backup_repo() {
 
     # no bitmaps - useful for fetch and clone only
     git -C "$clone" config repack.writeBitmaps false
+
+}
+
+init_backup_repo() {
+    local x orig=$1 clone=$2 ref=$3 remote
+
+    set -x
+    [[ $orig && -d "$orig" ]]
+    [[ $clone ]]
+    if [[ -d "$clone" ]]; then
+	remote=$(git -C "$clone" config remote."$ORIG_REPO".url) || true
+	if [[ $remote ]]; then
+	    echo "$ME: ERROR: remote $ORIG_REPO exists in $clone" >&2
+	    exit 1
+	fi
+    else
+	mkdir -p "$clone"
+	[[ -d "$clone" ]]
+	git -C "$clone" init --bare -q
+	configure_backup_repo "$clone"
+    fi
+
+    if [[ $ref ]]; then
+	[[ -d "$ref" ]]
+	local p=$(git_path "$ref" objects)
+
+	[[ $p ]]
+	echo "$p" >"$clone"/objects/info/alternates
+	echo "-- $ME: updating $ref ..." >&2
+	git -C "$ref" fetch --all --no-auto-maintenance
+    fi
+
+    echo "-- $ME: configuring backup repo $clone for $orig ..." >&2
+
+    git -C "$orig" remote add --mirror=push "$BACKUP_REPO" "$clone"
+    git -C "$orig" config "remote.$BACKUP_REPO.skipFetchAll" true
+    git -C "$orig" config "remote.$BACKUP_REPO.mirror" true
+
+    # Map local hierachy of original repo to backup/$ORIG_REPO
+    git -C "$orig" config "remote.$BACKUP_REPO.push" "+refs/*:refs/backup/$ORIG_REPO/*"
+    git -C "$orig" config "remote.$BACKUP_REPO.fetch" "refs/backup/$ORIG_REPO/*:refs/*"
+
+    git -C "$clone" remote add "$ORIG_REPO" "$orig"
+    git -C "$clone" config "remote.$ORIG_REPO.fetch" "+refs/*:refs/backup/$ORIG_REPO/*"
+    git -C "$clone" config "remote.$ORIG_REPO.push" "refs/backup/$ORIG_REPO/*:refs/*"
 
     push_to_backup "$orig" "$BACKUP_REPO"
 
@@ -236,6 +250,15 @@ else
 		echo "$REF/objects" >"$INFO"/alternates
 		git -C "$ORIG" gc --aggressive
 	    }
+	fi
+    else
+	ALT=$(git_path "$ORIG" objects/info/alternates)
+	if [[ $ALT ]]; then
+	    REF=$(cat "$ALT") || true
+	    if [[ $REF ]]; then
+		REF=${REF%/objects}
+		REF=${REF%/.git}
+	    fi
 	fi
     fi
 
