@@ -13,6 +13,9 @@ set -E
 ME=$(basename "$0")
 PATH=$PATH:$MYDIR
 
+TEMP=$(mktemp -d "${TMP:-/tmp}"/"$ME".XXXXXX)
+trap 'rm -rf "$TEMP"' 0
+
 is_valid_upstream() {
     local orig=$(git -C "$1" config remote."$2".url)
     case $orig in
@@ -29,8 +32,12 @@ for DIR in "$@"; do
 	continue
     fi
     if backup_url "$DIR" >/dev/null; then
-	echo "+++ $ME: $DIR: backup already configured" >&2
-	git-backup.sh "$DIR"
+	LOG=$TEMP/$(basename "$DIR").log
+	echo git-backup.sh "$DIR" ">$LOG" >&2
+	git-backup.sh "$DIR" &>"$LOG" || {
+	    cat "$LOG"
+	    echo "+++ $ME: ERROR: backup for $DIR failed +++" >&2
+	}
 	continue
     fi
 
@@ -101,7 +108,10 @@ for DIR in "$@"; do
 	    NAME="${NAME}X"
 	done
     fi
-    echo "+++ $ME: $DIR -> $BAK ${REF:+(ref $REF: $UPS)}" >&2
-    echo git-backup.sh -n "$NAME" -u "$UPS" ${REF:+-r "$REF"} "$DIR" "$BAK" >&2
-    git-backup.sh -n "$NAME" -u "$UPS" ${REF:+-r "$REF"} "$DIR" "$BAK" >&2
+    LOG=$TEMP/$(basename "$DIR").log
+    echo git-backup.sh -n "$NAME" -u "$UPS" ${REF:+-r "$REF"} "$DIR" "$BAK" ">$LOG" >&2
+    git-backup.sh -n "$NAME" -u "$UPS" ${REF:+-r "$REF"} "$DIR" "$BAK" &>$LOG || {
+	cat "$LOG"
+	echo "+++ $ME: ERROR: backup for $DIR failed +++" >&2
+    }
 done
