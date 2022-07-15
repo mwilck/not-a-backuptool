@@ -80,7 +80,6 @@ configure_backup_repo() {
 init_backup_repo() {
     local x orig=$1 clone=$2 ref=$3 remote
 
-    set -x
     [[ $orig && -d "$orig" ]]
     [[ $clone ]]
     if [[ -d "$clone" ]]; then
