@@ -27,7 +27,7 @@ is_valid_upstream() {
 }
 
 for DIR in "$@"; do
-    if [[ $DIR == *.git ]] || ! is_git_dir "$DIR"; then
+    if [[ $DIR == *.git ]] || ! is_git_dir "$DIR" || [[ -e "$DIR/NOBACKUP" ]]; then
 	echo "+++ $ME: skipping $DIR" >&2
 	continue
     fi
