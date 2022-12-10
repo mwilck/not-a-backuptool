@@ -102,14 +102,13 @@ else
 fi
 
 if [ -n "$LAST" ]; then
-    [ -d "$LAST"/img ] || {
+    [ -d "$LAST"/img ] || $(dirname $0)/restoreimg "$LAST"
+    if [ -d "$LAST"/img ]; then
 	add_cleanup "rm -rf \"$LAST\"/img"
-	$(dirname $0)/restoreimg "$LAST"
-    }
-    [ -d "$LAST"/img ] || {
+    else	
 	cry failed to extract $LAST/img. Reverting to full backup.
 	LAST=
-    }
+    fi
 fi
 
 if [ -n "$EXCL" ] && [ ! -f "$EXCL" ]; then die exclude file $EXCL not found; fi
