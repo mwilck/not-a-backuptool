@@ -1,5 +1,5 @@
 #! /bin/bash
 [ $(id -g -n) = backup ] || exec sg backup -c "$0 $@" || exit 1
 
-rsync -rc --chmod g+r /var/lib/createimg/ --exclude="/*/img/" --exclude="/*/diff-img/" odroid@nasobem.local:/c/backup/droid/mini/
+rsync -rc --chmod g+r /var/lib/createimg/ --exclude="/*/img/" --exclude="/*/diff-img/" Backup:/c/backup/droid/mini/
 
