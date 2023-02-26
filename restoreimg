@@ -1,6 +1,5 @@
 #! /bin/bash
-# STAR_X_FLAGS="-j -U -force-remove -force-hole -keep-nonempty-dirs -remove-first -acl -xattr -sparse"
-STAR_X_FLAGS="-j -U -force-remove -force-hole -keep-nonempty-dirs -remove-first -acl -sparse -no-secure-links"
+STAR_X_FLAGS="-j -U -force-remove -force-hole -keep-nonempty-dirs -remove-first -acl -sparse"
 RSYNC_FLAGS="-aHAXS"
 
 usage="usage: $0 dir"
