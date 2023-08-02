@@ -121,13 +121,19 @@ cmd() {
 check_backup_host() {
     # Try to resolve and ping the host, give up otherwise
     IP=$(dig +short "$BACKUP_HOST")
-    [[ -n "$IP" ]] || IP=$(avahi-resolve -n "$BACKUP_HOST" | cut -f 2)
-    [[ -n "$IP" ]]
-    ping -c 1 "$IP" &>/dev/null
+    if command -v avahi-resolve >/dev/null; then
+	[[ -n "$IP" ]] || IP=$(avahi-resolve -n "$BACKUP_HOST" | cut -f 2)
+    fi
 
     case $BACKUP in
-	/*) [[ -d "$BACKUP" ]];;
-	file://*) [[ -d "${BACKUP#file://}" ]];;
+	/*)
+	    [[ -n "$IP" ]]
+	    ping -c 1 "$IP" &>/dev/null
+	    [[ -d "$BACKUP" ]]
+	    ;;
+	file://*)
+	    [[ -d "${BACKUP#file://}" ]]
+	    ;;
     esac
 }
 
