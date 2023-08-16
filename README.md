@@ -88,23 +88,25 @@ repo as a remote:
 	cd linux
 	git remote add BACKUP /backup_dir/linux-backup.git
 	
-*Don't fetch yet!* Edit `.git/config` as follows:
+*Don't fetch yet!* 
+Apply the recommended backup repo configuration by running
+
+    git-backup.sh -c "$PWD"
+
+Alternatively, edit `.git/config` as follows:
 
     [remote "BACKUP"]
 	    url = /backup_dir/linux-backup.git
-	    fetch = refs/backup/myrepo/*:refs/*
-		fetch = refs/backup/myrepo/tags/*:refs/tag_backup/*
-		push = +refs/*:refs/backup/myrepo/*
+	    fetch = refs/backup/myrepo/*:refs/restore/*
 		
-Switch to a dummy branch to avoid errors from `git fetch`, and fetch:
+Now run *git fetch BACKUP*. This will restore all objects from the backup repo.
+To restore tags, branches, an other refs, run 
 
-    git switch -c __dummy
-	git fetch --force
-	rm -rf .git/refs/tags
-	mv .git/refs/tag_backup .git/refs/tags
-	
-The `tag_backup` trick is necessary because I couldn't figure out how to make
-git really pull every tag from the backup to `refs/tags` directly.
+    git-restore-refs
+
+in the just restored git directory. This will *not overwrite* any existing tags 
+or branches. Directly after cloning, you'll typically have the `master` branch
+only, plus all tags from remote repositories.
 
 **Note:** this will not update the reflog. The reflogs (for HEAD only) are
 stored in the backup repo under `logs`,

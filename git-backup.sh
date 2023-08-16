@@ -1,9 +1,12 @@
 #! /bin/bash
 : "${_MAXPACKSIZE:=2m}"
 : "${BACKUP_REPO:=BACKUP}"
-: "${ORIG_REPO:=origin}"
+: "${ORIG_REPO:=$(hostname)}"
 : "${GIT_TRACE2_REPACK:=}"
 : "${UPSTREAM:=origin}"
+# ref categories to backup / restore (except heads)
+: "${REF_CATEGORIES:=tags notes replace}"
+: "${RECONFIGURE:=}"
 
 MYDIR=$(dirname "$0")
 . "$MYDIR"/git-backup-functions.sh
@@ -77,8 +80,36 @@ configure_backup_repo() {
 
 }
 
+configure_fetch_push() {
+    local orig=$1 clone=$2 cat
+
+    echo "-- $ME: configuring backup repo $clone for $orig ..." >&2
+
+    git -C "$orig" remote add "$BACKUP_REPO" "$clone" || true
+    git -C "$orig" config "remote.$BACKUP_REPO.skipFetchAll" true
+    git -C "$orig" config "remote.$BACKUP_REPO.mirror" false
+
+    git -C "$clone" remote add "$ORIG_REPO" "$orig" || true
+    git -C "$clone" config "remote.$ORIG_REPO.skipFetchAll" false
+    git -C "$clone" config "remote.$ORIG_REPO.mirror" false
+
+    # Map local hierachy of original repo to refs/backup/$ORIG_REPO
+    # refs fetched back will be under refs/restore
+    # use e.g. git-restore-refs.sh to restore them
+    git -C "$orig"  config --replace-all "remote.$BACKUP_REPO.fetch" "+refs/backup/$ORIG_REPO/heads/*:refs/restore/heads/*"
+    git -C "$clone" config --replace-all "remote.$ORIG_REPO.push"    "+refs/backup/$ORIG_REPO/heads/*:refs/restore/heads/*"
+    git -C "$orig"  config --replace-all "remote.$BACKUP_REPO.push"  "+refs/heads/*:refs/backup/$ORIG_REPO/heads/*"
+    git -C "$clone" config --replace-all "remote.$ORIG_REPO.fetch"   "+refs/heads/*:refs/backup/$ORIG_REPO/heads/*"
+    for cat in $REF_CATEGORIES; do
+	git -C "$orig"  config --add "remote.$BACKUP_REPO.fetch" "+refs/backup/$ORIG_REPO/$cat/*:refs/restore/$cat/*"
+	git -C "$clone" config --add "remote.$ORIG_REPO.push"    "+refs/backup/$ORIG_REPO/$cat/*:refs/restore/$cat/*"
+	git -C "$orig"  config --add "remote.$BACKUP_REPO.push"  "+refs/$cat/*:refs/backup/$ORIG_REPO/$cat/*"
+	git -C "$clone" config --add "remote.$ORIG_REPO.fetch"   "+refs/$cat/*:refs/backup/$ORIG_REPO/$cat/*"
+    done
+}
+
 init_backup_repo() {
-    local x orig=$1 clone=$2 ref=$3 remote
+    local x orig=$1 clone=$2 ref=$3 remote cat
 
     [[ $orig && -d "$orig" ]]
     [[ $clone ]]
@@ -105,20 +136,7 @@ init_backup_repo() {
 	git -C "$ref" fetch --all --no-auto-maintenance
     fi
 
-    echo "-- $ME: configuring backup repo $clone for $orig ..." >&2
-
-    git -C "$orig" remote add --mirror=push "$BACKUP_REPO" "$clone"
-    git -C "$orig" config "remote.$BACKUP_REPO.skipFetchAll" true
-    git -C "$orig" config "remote.$BACKUP_REPO.mirror" true
-
-    # Map local hierachy of original repo to backup/$ORIG_REPO
-    git -C "$orig" config "remote.$BACKUP_REPO.push" "+refs/*:refs/backup/$ORIG_REPO/*"
-    git -C "$orig" config "remote.$BACKUP_REPO.fetch" "refs/backup/$ORIG_REPO/*:refs/*"
-
-    git -C "$clone" remote add "$ORIG_REPO" "$orig"
-    git -C "$clone" config "remote.$ORIG_REPO.fetch" "+refs/*:refs/backup/$ORIG_REPO/*"
-    git -C "$clone" config "remote.$ORIG_REPO.push" "refs/backup/$ORIG_REPO/*:refs/*"
-
+    configure_fetch_push "$orig" "$clone"
     push_to_backup "$orig" "$BACKUP_REPO"
 
     # In the future, store objects unpacked, we'll repack later
@@ -140,6 +158,7 @@ usage() {
     printf "Usage: %s [options] orig [backup]\nOptions:\n" "$ME"
     printf "%s/%s %s\t%s\n" \
 	   "-h" "--help" "" "print this help" \
+	   "-c" "--configure" "" "apply backup repo configuration" \
 	   "-m" "--max-pack-size" SIZE "set max pack size" \
 	   "-n" "--name" NAME "set origin name in backup repo" \
 	   "-r" "--reference" PATH "set reference repository" \
@@ -147,8 +166,8 @@ usage() {
 }
 
 REF=
-set -- $(getopt -ohm:n:r:u: \
-		-l help -l max-pack-size: -l name: \
+set -- $(getopt -ohcm:n:r:u: \
+		-l help -l configure -l max-pack-size: -l name: \
 		-l reference: -l upstream: \
 		-- "$@")
 
@@ -156,7 +175,11 @@ while [[ $# -gt 0 ]]; do
     case $1 in
 	-h|--help)
 	    usage
-	    exit 0;;
+	    exit 0
+	    ;;
+	-c|--configure)
+	    RECONFIGURE=yes
+	    ;;
 	-m|--max-pack-size)
 	    shift
 	    eval "_MAXPACKSIZE=$1"
@@ -223,16 +246,21 @@ if [[ $CLONE ]]; then
 	ALT=${ALT%/objects}
 	ALT=${ALT%/.git}
 	echo "-- $ME: updating $ALT ..." >&2
-	git -C "$ALT" fetch --all --no-auto-maintenance || true
+	[ "$RECONFIGURE" ] || 
+	    git -C "$ALT" fetch --all --no-auto-maintenance || true
     fi
 
-    echo "-- $ME: updating $ORIG ..." >&2
-    git -C "$ORIG" fetch --all --no-auto-maintenance || true
-    push_to_backup "$ORIG" "$BACKUP_REPO"
+    if [ "$RECONFIGURE" ]; then
+	configure_fetch_push "$ORIG" "$CLONE"
+    else
+	echo "-- $ME: updating $ORIG ..." >&2
+	git -C "$ORIG" fetch --all --no-auto-maintenance || true
+	push_to_backup "$ORIG" "$BACKUP_REPO"
 
-    echo "-- $ME: repacking $CLONE ..." >&2
-    GIT_TRACE2=$GIT_TRACE2_REPACK git -C "$CLONE" repack -l -f -d -n
-    make_keep_files "$CLONE" "$MAXPACKSIZE"
+	echo "-- $ME: repacking $CLONE ..." >&2
+	GIT_TRACE2=$GIT_TRACE2_REPACK git -C "$CLONE" repack -l -f -d -n
+	make_keep_files "$CLONE" "$MAXPACKSIZE"
+    fi
 else
     echo "=== $ME: Creating backup repo $1 ..." >&2
     [[ $# -eq 1 ]]
