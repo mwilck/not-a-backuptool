@@ -101,6 +101,7 @@ fi
 : "${ACTION:=backup}"
 : "${WARN_INTERVAL:=$((3600*24*7))}"
 : "${DUPLICITY:=duplicity}"
+: "${S3_BUCKET:=${BACK_NAME}}"
 
 [[ $BACK_DEBUG -le 2 ]] || set -x
 
