@@ -91,6 +91,8 @@ fi
 : "${WARN_INTERVAL:=$((3600*24*7))}"
 : "${DUPLICITY:=duplicity}"
 
+[[ $BACK_DEBUG -le 2 ]] || set -x
+
 LOG="$LOGDIR/back-$BACK_NAME.log"
 TTY=$(tty) || TTY=
 GPG_TTY=$TTY
