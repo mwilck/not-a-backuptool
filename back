@@ -83,7 +83,7 @@ fi
 : "${EXTRA_OPTS:=}"
 : "${VERBOSITY:=notice}"
 : "${VOLSIZE:=512}"
-: "${OPTS:="--volsize ${VOLSIZE} -v${VERBOSITY} ${NOBACKUP:+--exclude-if-present "$NOBACKUP"}  ${EXTRA_OPTS}"}"
+: "${OPTS:="--volsize ${VOLSIZE} -v${VERBOSITY} ${NOBACKUP:+--exclude-if-present "$NOBACKUP"} --asynchronous-upload ${EXTRA_OPTS}"}"
 : "${DRY:=--dry-run}"
 : "${FULL:=}"
 : "${SSH_LIFE:=7200}"
