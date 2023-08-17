@@ -62,35 +62,35 @@ elif [[ -r "$CONF"/.backup.conf ]]; then
     source "$CONF"/.backup.conf
 fi
 
-: ${BACK_SRC:=/}
-: ${BACKUP_HOST:=nasobem.local}
-: ${BACK_PROFILE:=backup}
+: "${BACK_SRC:=/}"
+: "${BACKUP_HOST:=nasobem.local}"
+: "${BACK_PROFILE:=backup}"
 # The :://$BACK_PROFILE// syntax requires a host "$BACK_PROFILE" defined in /root/.ssh/config
 # Make sure to define Algorithms and keytypes there, too, as supported by the host
-: ${BACKUP:=pexpect+sftp://"${BACK_PROFILE}"//c/backup/"${BACK_NAME}"}
+: "${BACKUP:=pexpect+sftp://"${BACK_PROFILE}"//c/backup/"${BACK_NAME}"}"
 : "${BACKUP_RO:=file:///net/nasobem.local/c/backup/$BACK_NAME}"
-: ${SSH_IDENTITY:=/root/.ssh/id_bck}
-: ${KEY:=63D76654}
-: ${INTERVAL:=$((3600*4-30))}
-: ${BACK_DEBUG:=0}
-: ${TMPROOT:=/tmp}
-: ${LOGDIR:=/var/log}
-: ${NOBACKUP:=_NOBACKUP_}
-: ${SKIP_INCLUDELIST:=}
+: "${SSH_IDENTITY:=/root/.ssh/id_bck}"
+: "${KEY:=63D76654}"
+: "${INTERVAL:=$((3600*4-30))}"
+: "${BACK_DEBUG:=0}"
+: "${TMPROOT:=/tmp}"
+: "${LOGDIR:=/var/log}"
+: "${NOBACKUP:=_NOBACKUP_}"
+: "${SKIP_INCLUDELIST:=}"
 : "${S3_OPTS:=--s3-european-buckets --s3-use-deep-archive --s3-region-name=eu-central-1}"
 
-: ${CACHE:=/root/.cache/duplicity}
-: ${GNUPGHOME:="$CONF"/.gnupg}
-: ${EXTRA_OPTS:=}
-: ${VERBOSITY:=notice}
-: ${VOLSIZE:=512}
-: ${OPTS:="--volsize ${VOLSIZE} -v${VERBOSITY} ${NOBACKUP:+--exclude-if-present "$NOBACKUP"}  ${EXTRA_OPTS}"}
-: ${DRY:=--dry-run}
-: ${FULL:=}
-: ${SSH_LIFE:=7200}
-: ${ACTION:=backup}
-: ${WARN_INTERVAL:=$((3600*24*7))}
-: ${DUPLICITY:=duplicity}
+: "${CACHE:=/root/.cache/duplicity}"
+: "${GNUPGHOME:="$CONF"/.gnupg}"
+: "${EXTRA_OPTS:=}"
+: "${VERBOSITY:=notice}"
+: "${VOLSIZE:=512}"
+: "${OPTS:="--volsize ${VOLSIZE} -v${VERBOSITY} ${NOBACKUP:+--exclude-if-present "$NOBACKUP"}  ${EXTRA_OPTS}"}"
+: "${DRY:=--dry-run}"
+: "${FULL:=}"
+: "${SSH_LIFE:=7200}"
+: "${ACTION:=backup}"
+: "${WARN_INTERVAL:=$((3600*24*7))}"
+: "${DUPLICITY:=duplicity}"
 
 LOG="$LOGDIR/back-$BACK_NAME.log"
 TTY=$(tty) || TTY=
