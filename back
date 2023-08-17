@@ -62,12 +62,24 @@ elif [[ -r "$CONF"/.backup.conf ]]; then
 fi
 
 : "${BACK_SRC:=/}"
+: "${BACK_PROTO:=pexpect+sftp}"
 : "${BACKUP_HOST:=nasobem.local}"
 : "${BACK_PROFILE:=backup}"
+[[ "$BACK_PATH" ]] || {
+    case "$BACKUP_HOST" in
+	nasobem|nasobem.local)
+	    BACK_PATH=/c/backup
+	    ;;
+	ananas|ananas.local)
+	    BACK_PATH=/export/Backup/$(hostname)
+	    ;;
+    esac
+}
+[[ "$BACK_PATH" ]]
 # The :://$BACK_PROFILE// syntax requires a host "$BACK_PROFILE" defined in /root/.ssh/config
 # Make sure to define Algorithms and keytypes there, too, as supported by the host
-: "${BACKUP:=pexpect+sftp://"${BACK_PROFILE}"//c/backup/"${BACK_NAME}"}"
-: "${BACKUP_RO:=file:///net/nasobem.local/c/backup/$BACK_NAME}"
+: "${BACKUP:=${BACK_PROTO}://${BACK_PROFILE}/${BACK_PATH}/${BACK_NAME}}"
+: "${BACKUP_RO:=file:///net/${BACKUP_HOST}${BACK_PATH}/${BACK_NAME}}"
 : "${SSH_IDENTITY:=/root/.ssh/id_bck}"
 : "${KEY:=63D76654}"
 : "${INTERVAL:=$((3600*4-30))}"
@@ -77,7 +89,6 @@ fi
 : "${NOBACKUP:=_NOBACKUP_}"
 : "${SKIP_INCLUDELIST:=}"
 : "${S3_OPTS:=--s3-european-buckets --s3-use-deep-archive --s3-region-name=eu-central-1}"
-
 : "${CACHE:=/root/.cache/duplicity}"
 : "${GNUPGHOME:="$CONF"/.gnupg}"
 : "${EXTRA_OPTS:=}"
