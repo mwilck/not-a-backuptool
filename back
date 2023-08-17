@@ -325,6 +325,7 @@ includelist() {
 - %HOME%/.DCOPserver_*
 - %HOME%/.adobe
 - %HOME%/.ansible/collections
+- %HOME%/.ansible/tmp
 - %HOME%/.beagle
 - %HOME%/.aMule
 - %HOME%/.cddb
@@ -394,6 +395,7 @@ includelist() {
 - %HOME%/.kde/tmp-*
 - %HOME%/.local/lib/python*/site-packages
 - %HOME%/.local/share/DisplayCAL/logs
+- %HOME%/.local/share/.cpan/build
 - %HOME%/.local/share/flatpak
 - %HOME%/.local/share/gnome-do
 - %HOME%/.local/share/gnome-shell/extensions
@@ -408,6 +410,7 @@ includelist() {
 - %HOME%/.local/share/parcellite
 - %HOME%/.local/share/shotwell/data
 - %HOME%/.local/share/tracker/data
+- %HOME%/.local/share/virtualenv/wheel
 - %HOME%/.local/share/xorg/Xorg.*.log.old
 - %HOME%/.local/share/zeitgeist
 - %HOME%/.macromedia/Flash_Player
@@ -420,6 +423,7 @@ includelist() {
 - %HOME%/.mozilla/firefox/*/datareporting
 - %HOME%/.mozilla/firefox/*/saved-telemetry-pings
 - %HOME%/.mozilla/firefox/*/extensions
+- %HOME%/.mozilla/firefox/*/minidumps
 - %HOME%/.mozilla/firefox/*/storage
 - %HOME%/.mozilla/firefox/*/webapps
 - %HOME%/.mozilla/firefox/*/webappsstore.*
@@ -441,6 +445,8 @@ includelist() {
 - %HOME%/.thunderbird/*/extensions
 - %HOME%/.thunderbird/*/saved-telemetry-pings
 - %HOME%/.thunderbird/Crash*
+- %HOME%/.vagrant.d/tmp
+- %HOME%/**/.goutputstream*
 - %HOME%/.pulse
 - %HOME%/.xauth*
 - %HOME%/.Private
@@ -459,6 +465,7 @@ includelist() {
 - %HOME%/Dropbox
 - %HOME%/**/GPUCache
 - %HOME%/gtk-gnutella-downloads
+- %HOME%/perl5/lib
 - /home/*/rpmbuild
 - /var/lib/clamav
 - /var/log/cups
