@@ -430,7 +430,6 @@ includelist() {
 - %HOME%/.thunderbird/*/saved-telemetry-pings
 - %HOME%/.thunderbird/Crash*
 - %HOME%/.pulse
-- %HOME%/.purple/logs
 - %HOME%/.xauth*
 - %HOME%/.Private
 - %HOME%/.texmf-var
