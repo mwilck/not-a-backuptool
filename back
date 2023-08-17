@@ -48,7 +48,6 @@ check_permissions "$0"
 if [[ ! $BACK_NAME ]]; then
     BACK_NAME=$(hostname)
     [[ $BACK_NAME ]]
-    BACK_NAME=${BACK_NAME%%.*}.dup
 fi
 
 # NOTE ! NOTE ! NOTE ! - configuration
