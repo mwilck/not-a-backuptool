@@ -397,6 +397,9 @@ includelist() {
 - %HOME%/.local/lib/python*/site-packages
 - %HOME%/.local/share/DisplayCAL/logs
 - %HOME%/.local/share/.cpan/build
+- %HOME%/.local/share/containers/cache
+- %HOME%/.local/share/containers/storage/overlay*
+- %HOME%/.local/share/containers/storage/tmp
 - %HOME%/.local/share/flatpak
 - %HOME%/.local/share/gnome-do
 - %HOME%/.local/share/gnome-shell/extensions
