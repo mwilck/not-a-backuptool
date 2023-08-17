@@ -212,8 +212,8 @@ case $ACTION in
 	    add_ssh_id
 	fi
 	check_backup_host
-	cry restoring to $TRG
 	cmd $DUPLICITY restore -v${VERBOSITY} $ARGS --archive-dir "$CACHE" --name "$BACK_NAME" --encrypt-key "$KEY" "$@" "$BACKUP" "$TRG"
+	cry restored to $TRG
 	exit 0
 	;;
     replicate)
